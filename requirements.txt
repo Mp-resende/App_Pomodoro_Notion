@@ -1,0 +1,13 @@
+# ==================== DEPENDÊNCIAS DO POMODORO DEV TRACKER ====================
+
+# Interface Gráfica - customtkinter
+customtkinter==5.2.2
+
+# Gerenciamento de Variáveis de Ambiente
+python-dotenv==1.0.1
+
+# Cliente oficial da API Notion
+notion-client==2.2.1
+
+# Dependência da notion-client
+httpx==0.26.0

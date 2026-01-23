@@ -1,0 +1,36 @@
+# Variáveis de ambiente (credenciais)
+.env
+.env.local
+.env.*.local
+
+# Ambiente virtual
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Cache
+*.cache
+.pytest_cache/
+
+# Distribuição
+build/
+dist/
+*.egg-info/
+
+# Notion cache (se necessário)
+.notion_cache/
