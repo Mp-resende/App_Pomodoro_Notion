@@ -1,36 +1,33 @@
-# Variáveis de ambiente (credenciais)
+# Variáveis de ambiente (credenciais privadas - NUNCA ENVIAR)
 .env
 .env.local
 .env.*.local
 
-# Ambiente virtual
-venv/
-env/
-ENV/
-__pycache__/
-*.py[cod]
-*$py.class
-
-# IDE
+# IDEs e editores de texto
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
 
-# Logs
-*.log
-logs/
+# Pastas temporárias de dependências do Flutter
+pomodoro_flutter/.dart_tool/
+pomodoro_flutter/.flutter-plugins
+pomodoro_flutter/.flutter-plugins-dependencies
+pomodoro_flutter/.metadata
+pomodoro_flutter/.packages
 
-# Cache
-*.cache
-.pytest_cache/
+# Pasta de build padrão do Flutter (Ignora arquivos temporários pesados)
+pomodoro_flutter/build/
 
-# Distribuição
-build/
-dist/
-*.egg-info/
+# ==========================================
+# EXCEÇÕES DE DISTRIBUIÇÃO (Auto-Update)
+# ==========================================
+# Permite rastrear e enviar os APKs finais gerados para o Android
+!pomodoro_flutter/build/app/outputs/flutter-apk/*.apk
 
-# Notion cache (se necessário)
-.notion_cache/
+# Permite rastrear e enviar a pasta compilada final de Release para o Windows
+!pomodoro_flutter/build/windows/x64/runner/Release/
