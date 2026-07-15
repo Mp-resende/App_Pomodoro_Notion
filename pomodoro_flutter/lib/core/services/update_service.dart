@@ -38,11 +38,13 @@ class UpdateService {
   // Lança a URL do novo APK ou ZIP direto no navegador do dispositivo
   static Future<void> iniciarAtualizacao(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
+    try {
       await launchUrl(
         uri,
-        mode: LaunchMode.externalApplication, // Abre o navegador padrão do sistema
+        mode: LaunchMode.externalApplication, // Força a abertura no navegador do sistema
       );
+    } catch (e) {
+      stderr.writeln('Erro ao abrir navegador para atualizacao: $e');
     }
   }
 
