@@ -520,7 +520,9 @@ class TimerProvider with ChangeNotifier {
     if (sessaoEmFinalizacao) return;
     sessaoEmFinalizacao = true;
     rodando = false;
-    tempoFim = DateTime.now();
+    if (tempoFim == null) {
+      tempoFim = DateTime.now();
+    }
     pomodorosCompletados++;
     pomodorosHoje++;
     _salvarContadorHoje();
