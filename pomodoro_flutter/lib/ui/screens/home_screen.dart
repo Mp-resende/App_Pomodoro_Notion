@@ -15,7 +15,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final TextEditingController _tarefaController = TextEditingController();
   final FocusNode _tarefaFocusNode = FocusNode();
   String _categoriaSelecionada = "Python";
@@ -23,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final timerProvider = Provider.of<TimerProvider>(context, listen: false);
 
@@ -434,8 +435,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tarefaController.dispose();
     _tarefaFocusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final timerProvider = Provider.of<TimerProvider>(context, listen: false);
+    if (state == AppLifecycleState.paused) {
+      // O app foi minimizado ou a tela apagou: cria a notificação do cronômetro nativo
+      timerProvider.mostrarNotificacaoMinimizada();
+    } else if (state == AppLifecycleState.resumed) {
+      // O app retornou para a tela: remove a notificação da barra (não há necessidade dela poluindo a tela)
+      timerProvider.ocultarNotificacaoMinimizada();
+    }
   }
 }

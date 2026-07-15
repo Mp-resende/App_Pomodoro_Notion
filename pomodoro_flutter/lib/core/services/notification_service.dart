@@ -167,17 +167,19 @@ class NotificationService {
     if (!Platform.isAndroid) return;
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'pomodoro_active_channel',
+      'pomodoro_active_channel_v2', // Novo canal para resetar o cache do Android
       'Cronometro Ativo',
       channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status',
-      importance: Importance.low, // Baixa importância para não vibrar/fazer barulho a cada início
+      importance: Importance.low, // Baixa importância para não vibrar/fazer barulho
       priority: Priority.low,
       playSound: false,
-      ongoing: true, // Notificação persistente (não pode ser arrastada para o lado)
+      ongoing: true, // Notificação persistente (não pode ser excluída deslizando)
       showWhen: true,
       usesChronometer: true,
       chronometerCountDown: true,
       when: tempoFim.millisecondsSinceEpoch,
+      autoCancel: false, // O clique reabre o app mas não cancela a notificação (nós controlamos isso)
+      onlyAlertOnce: true, // Garante que atualizações na notificação não toquem som de novo
     );
 
     final NotificationDetails platformChannelSpecifics = NotificationDetails(

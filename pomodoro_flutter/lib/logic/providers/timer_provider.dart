@@ -732,6 +732,25 @@ class TimerProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Acionado quando o aplicativo é minimizado ou a tela é desligada
+  void mostrarNotificacaoMinimizada() {
+    if (Platform.isAndroid && tempoFim != null && rodando) {
+      final horaFimStr = "${tempoFim!.hour.toString().padLeft(2, '0')}:${tempoFim!.minute.toString().padLeft(2, '0')}";
+      notificationService.exibirNotificacaoCronometro(
+        modoDescanso ? "☕ Descanso em Andamento" : "🍅 Foco em Andamento",
+        "Término às $horaFimStr • ${modoDescanso ? 'Aproveite para relaxar!' : tarefaAtual}",
+        tempoFim!,
+      );
+    }
+  }
+
+  // Acionado quando o aplicativo retorna para o primeiro plano
+  void ocultarNotificacaoMinimizada() {
+    if (Platform.isAndroid) {
+      notificationService.removerNotificacaoCronometro();
+    }
+  }
+
   @override
   void dispose() {
     _ticker?.cancel();
