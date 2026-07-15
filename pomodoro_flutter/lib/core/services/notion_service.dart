@@ -281,4 +281,56 @@ class NotionService {
     }
     return [];
   }
+
+  // Cria uma nova página/opção em uma database relacionada
+  Future<String?> criarOpcaoRelacao(String relatedDbId, String tituloRegistro, {int retries = 3}) async {
+    if (!connected) return null;
+
+    // 1. Descobre o nome exato da coluna principal (Title) da database filha
+    String nomeColunaTitulo = "Name"; // Fallback genérico
+    try {
+      final dbUrl = Uri.parse('https://api.notion.com/v1/databases/$relatedDbId');
+      final dbResponse = await http.get(dbUrl, headers: _headers);
+      if (dbResponse.statusCode == 200) {
+        final data = jsonDecode(dbResponse.body);
+        final properties = data['properties'] as Map<String, dynamic>? ?? {};
+        for (final entry in properties.entries) {
+          final propInfo = entry.value as Map<String, dynamic>;
+          if (propInfo['type'] == 'title') {
+            nomeColunaTitulo = entry.key;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Faz o POST para criar a página
+    final url = Uri.parse('https://api.notion.com/v1/pages');
+    final body = jsonEncode({
+      "parent": {"database_id": relatedDbId},
+      "properties": {
+        nomeColunaTitulo: {
+          "title": [
+            {
+              "text": {"content": tituloRegistro}
+            }
+          ]
+        }
+      }
+    });
+
+    for (int tentativa = 0; tentativa < retries; tentativa++) {
+      try {
+        final response = await http.post(url, headers: _headers, body: body).timeout(const Duration(seconds: 8));
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final responseData = jsonDecode(response.body);
+          return responseData['id'];
+        }
+      } catch (_) {}
+      if (tentativa < retries - 1) {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+    return null;
+  }
 }

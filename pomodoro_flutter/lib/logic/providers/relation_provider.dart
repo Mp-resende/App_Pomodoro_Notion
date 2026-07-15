@@ -92,6 +92,37 @@ class RelationProvider with ChangeNotifier {
     return opcoes.map((e) => e['title']?.toString() ?? '').where((t) => t.isNotEmpty).toList();
   }
 
+  // Cria uma nova opção na base do Notion correspondente ao campo atual e a seleciona
+  Future<bool> criarNovaOpcao(String titulo) async {
+    final campo = timerProvider.campoRelacaoSelecionado;
+    final service = timerProvider.notionService;
+    if (campo == null || service == null || !service.connected || !camposRelacao.containsKey(campo)) return false;
+
+    carregando = true;
+    notifyListeners();
+
+    final relatedDbId = camposRelacao[campo]['database_id'] as String;
+    final novoId = await service.criarOpcaoRelacao(relatedDbId, titulo);
+
+    if (novoId != null) {
+      // Recarrega a lista de opções silenciosamente do Notion
+      final novasOpcoes = await service.consultarOpcoesRelacao(relatedDbId);
+      camposRelacao[campo]['opcoes'] = novasOpcoes;
+      
+      // Seleciona a opção recém-criada
+      timerProvider.idRelacaoSelecionado = novoId;
+      
+      carregando = false;
+      notifyListeners();
+      timerProvider.notifyListeners();
+      return true;
+    }
+
+    carregando = false;
+    notifyListeners();
+    return false;
+  }
+
   @override
   void dispose() {
     timerProvider.removeListener(_onTimerProviderChange);
