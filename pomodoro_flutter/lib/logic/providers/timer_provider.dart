@@ -510,17 +510,25 @@ class TimerProvider with ChangeNotifier {
     labelDecorrido = "";
     notifyListeners();
 
-    // Notificações locais e toques
-    notificationService.tocarAlarme();
-    notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
-
-    // Aciona callback para abrir popup na tela
-    if (onSessionFinished != null) {
-      onSessionFinished!();
-    }
-
-    // Registra sessão no Notion em background
+    // 1. Prioridade Máxima: Registra a sessão no Notion imediatamente
     _registrarNoNotion(tarefaAtual, tempoInicio!, tempoFim!, categoriaAtual, true);
+
+    // 2. Toca som de alarme com proteção de erros
+    try {
+      notificationService.tocarAlarme();
+    } catch (_) {}
+
+    // 3. Dispara a notificação de forma isolada e segura
+    try {
+      notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+    } catch (_) {}
+
+    // 4. Abre o popup na UI de forma isolada (capturando falhas caso o app esteja minimizado)
+    if (onSessionFinished != null) {
+      try {
+        onSessionFinished!();
+      } catch (_) {}
+    }
   }
 
   // Encerramento antecipado
@@ -546,11 +554,18 @@ class TimerProvider with ChangeNotifier {
     progresso = 0.0;
     notifyListeners();
 
-    notificationService.tocarAlarme();
-    notificationService.notificar("✅ Descanso Concluído!", "Pronto para outro Pomodoro?");
+    try {
+      notificationService.tocarAlarme();
+    } catch (_) {}
+
+    try {
+      notificationService.notificar("✅ Descanso Concluído!", "Pronto para outro Pomodoro?");
+    } catch (_) {}
 
     if (onBreakFinished != null) {
-      onBreakFinished!();
+      try {
+        onBreakFinished!();
+      } catch (_) {}
     }
 
     resetar();

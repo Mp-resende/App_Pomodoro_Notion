@@ -29,7 +29,26 @@ class _HomeScreenState extends State<HomeScreen> {
       // Registra o callback para abrir o popup de comemoração de forma síncrona na UI
       timerProvider.onSessionFinished = () {
         if (mounted) {
-          CompletionPopup.mostrar(context, timerProvider);
+          try {
+            CompletionPopup.mostrar(context, timerProvider);
+          } catch (e) {
+            debugPrint("Erro ao abrir popup de término: $e");
+          }
+        }
+      };
+
+      // Registra o callback para quando o descanso terminar
+      timerProvider.onBreakFinished = () {
+        if (mounted) {
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("☕ Descanso concluído! Pronto para outra sessão?"),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          } catch (_) {}
         }
       };
 
