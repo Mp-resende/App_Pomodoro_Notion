@@ -167,12 +167,13 @@ class NotificationService {
     if (!Platform.isAndroid) return;
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'pomodoro_active_channel_v2', // Novo canal para resetar o cache do Android
+      'pomodoro_active_channel_v3', // Atualizado para v3 para aplicar regras de lockscreen e importância
       'Cronometro Ativo',
-      channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status',
-      importance: Importance.low, // Baixa importância para não vibrar/fazer barulho
-      priority: Priority.low,
+      channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status e tela de bloqueio',
+      importance: Importance.defaultImportance, // Exigido pelo Android para aparecer na tela de bloqueio (Lock Screen)
+      priority: Priority.defaultPriority,
       playSound: false,
+      enableVibration: false, // Início silencioso e confortável
       ongoing: true, // Notificação persistente (não pode ser excluída deslizando)
       showWhen: true,
       usesChronometer: true,
@@ -180,6 +181,7 @@ class NotificationService {
       when: tempoFim.millisecondsSinceEpoch,
       autoCancel: false, // O clique reabre o app mas não cancela a notificação (nós controlamos isso)
       onlyAlertOnce: true, // Garante que atualizações na notificação não toquem som de novo
+      visibility: NotificationVisibility.public, // Torna o conteúdo e cronômetro visíveis na Lock Screen
     );
 
     final NotificationDetails platformChannelSpecifics = NotificationDetails(
