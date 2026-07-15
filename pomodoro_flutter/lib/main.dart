@@ -8,9 +8,15 @@ import 'logic/providers/timer_provider.dart';
 import 'logic/providers/relation_provider.dart';
 import 'ui/screens/home_screen.dart';
 
+import 'package:window_manager/window_manager.dart';
+
 void main() async {
   // Garante a inicialização das bindings nativas do Flutter
   WidgetsFlutterBinding.ensureInitialized();
+  
+  if (Platform.isWindows) {
+    await windowManager.ensureInitialized();
+  }
 
   // 1. Inicializa os serviços estruturais
   final storageService = StorageService();

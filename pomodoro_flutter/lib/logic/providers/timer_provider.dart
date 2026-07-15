@@ -6,6 +6,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/notion_service.dart';
 import '../../core/services/update_service.dart';
 import '../../data/models/pomodoro_config.dart';
+import 'package:window_manager/window_manager.dart';
 
 class TimerProvider with ChangeNotifier {
   final StorageService storageService;
@@ -549,6 +550,14 @@ class TimerProvider with ChangeNotifier {
       notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
     } catch (_) {}
 
+    // Força a janela do Windows a piscar ou vir para frente
+    if (Platform.isWindows) {
+      try {
+        windowManager.show();
+        windowManager.focus();
+      } catch (_) {}
+    }
+
     // 4. Abre o popup na UI de forma isolada (capturando falhas caso o app esteja minimizado)
     if (onSessionFinished != null) {
       try {
@@ -595,6 +604,13 @@ class TimerProvider with ChangeNotifier {
     try {
       notificationService.notificar("✅ Descanso Concluído!", "Pronto para outro Pomodoro?");
     } catch (_) {}
+
+    if (Platform.isWindows) {
+      try {
+        windowManager.show();
+        windowManager.focus();
+      } catch (_) {}
+    }
 
     if (onBreakFinished != null) {
       try {

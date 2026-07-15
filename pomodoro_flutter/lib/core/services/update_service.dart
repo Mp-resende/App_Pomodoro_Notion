@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 class UpdateService {
   // Versão estática local instalada no aplicativo (devemos incrementar em futuras releases)
-  static const String versaoAtual = "1.0.6";
+  static const String versaoAtual = "1.0.7";
 
   // URL do JSON de versão hospedado na branch main do repositório no GitHub
   static const String _urlVersaoJson =
