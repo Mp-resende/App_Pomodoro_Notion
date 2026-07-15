@@ -6,6 +6,7 @@ class PomodoroConfig {
   int tempoDescansoLongo;    // minutos
   int pomodorosAteLongBreak;
   bool somAlarmeAtivado;
+  bool vibrarAoFinalizar;
   bool notificacoesSistema;
   List<String> categorias;
 
@@ -15,6 +16,7 @@ class PomodoroConfig {
     this.tempoDescansoLongo = 15,
     this.pomodorosAteLongBreak = 4,
     this.somAlarmeAtivado = true,
+    this.vibrarAoFinalizar = true,
     this.notificacoesSistema = true,
     List<String>? categorias,
   }) : this.categorias = categorias ?? ["Python", "C#", "SQL", "n8n", "Arquitetura", "Implanta", "Outros"];
@@ -27,6 +29,7 @@ class PomodoroConfig {
       tempoDescansoLongo: json['tempo_descanso_longo'] as int? ?? 15,
       pomodorosAteLongBreak: json['pomodoros_ate_long_break'] as int? ?? 4,
       somAlarmeAtivado: json['som_alarme_ativado'] as bool? ?? true,
+      vibrarAoFinalizar: json['vibrar_ao_finalizar'] as bool? ?? true,
       notificacoesSistema: json['notificacoes_sistema'] as bool? ?? true,
       categorias: (json['categorias'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
     );
@@ -40,6 +43,7 @@ class PomodoroConfig {
       'tempo_descanso_longo': tempoDescansoLongo,
       'pomodoros_ate_long_break': pomodorosAteLongBreak,
       'som_alarme_ativado': somAlarmeAtivado,
+      'vibrar_ao_finalizar': vibrarAoFinalizar,
       'notificacoes_sistema': notificacoesSistema,
       'categorias': categorias,
     };

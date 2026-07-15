@@ -27,14 +27,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final timerProvider = Provider.of<TimerProvider>(context, listen: false);
 
-      // Registra o callback para abrir o popup de comemoração de forma síncrona na UI
+      // Registra o callback para abrir o popup de comemoração com segurança pós-frame
       timerProvider.onSessionFinished = () {
         if (mounted) {
-          try {
-            CompletionPopup.mostrar(context, timerProvider);
-          } catch (e) {
-            debugPrint("Erro ao abrir popup de término: $e");
-          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            try {
+              CompletionPopup.mostrar(context, timerProvider);
+            } catch (e) {
+              debugPrint("Erro ao abrir popup de término: $e");
+            }
+          });
         }
       };
 

@@ -215,18 +215,22 @@ class NotificationService {
   }
 
   // Notificação heads-up de prioridade máxima com botões interativos
-  Future<void> notificarFimFoco(String titulo, String mensagem) async {
+  Future<void> notificarFimFoco(String titulo, String mensagem, {required bool comSom, required bool comVibracao}) async {
     await inicializar();
 
     if (!Platform.isAndroid) return;
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'pomodoro_end_channel_v4',
-      'Fim da Sessao (Acoes)',
+    final canalId = comSom ? 'pomodoro_end_channel_sound_v5' : 'pomodoro_end_channel_silent_v5';
+    final canalNome = comSom ? 'Fim da Sessao (Com Som)' : 'Fim da Sessao (Apenas Vibrar)';
+
+    final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      canalId,
+      canalNome,
       channelDescription: 'Dispara alertas imediatos ao final do tempo de trabalho com botões de acao',
       importance: Importance.max,
       priority: Priority.high,
-      playSound: true,
+      playSound: comSom,
+      enableVibration: comVibracao,
       visibility: NotificationVisibility.public,
       actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
@@ -244,7 +248,7 @@ class NotificationService {
       ],
     );
 
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
     );
 

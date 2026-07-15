@@ -550,14 +550,21 @@ class TimerProvider with ChangeNotifier {
     _registrarNoNotion(tarefaAtual, tempoInicio!, tempoFim!, categoriaAtual, true);
 
     // 2. Toca som de alarme com proteção de erros
-    try {
-      notificationService.tocarAlarme();
-    } catch (_) {}
+    if (config.somAlarmeAtivado) {
+      try {
+        notificationService.tocarAlarme();
+      } catch (_) {}
+    }
 
     // 3. Dispara a notificação de forma isolada e segura
     try {
       if (Platform.isAndroid) {
-        notificationService.notificarFimFoco("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+        notificationService.notificarFimFoco(
+          "🎉 Pomodoro Concluído!",
+          "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
+          comSom: config.somAlarmeAtivado,
+          comVibracao: config.vibrarAoFinalizar,
+        );
       } else {
         notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
       }
@@ -610,9 +617,11 @@ class TimerProvider with ChangeNotifier {
       notificationService.removerNotificacaoCronometro();
     }
 
-    try {
-      notificationService.tocarAlarme();
-    } catch (_) {}
+    if (config.somAlarmeAtivado) {
+      try {
+        notificationService.tocarAlarme();
+      } catch (_) {}
+    }
 
     try {
       notificationService.notificar("✅ Descanso Concluído!", "Pronto para outro Pomodoro?");

@@ -23,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _dbIdController;
 
   late bool _somAlarme;
+  late bool _vibrarAlarme;
   late bool _notifSistema;
   late List<String> _categorias;
   bool _iniciado = false;
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiKeyController = TextEditingController();
     _dbIdController = TextEditingController();
     _somAlarme = true;
+    _vibrarAlarme = true;
     _notifSistema = true;
     _categorias = [];
   }
@@ -62,6 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _dbIdController.text = timerProvider.notionDatabaseId;
 
     _somAlarme = timerProvider.config.somAlarmeAtivado;
+    _vibrarAlarme = timerProvider.config.vibrarAoFinalizar;
     _notifSistema = timerProvider.config.notificacoesSistema;
     _categorias = List<String>.from(timerProvider.config.categorias);
   }
@@ -113,6 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       tempoDescansoLongo: int.parse(_descansoLongoController.text),
       pomodorosAteLongBreak: int.parse(_cicloLBreakController.text),
       somAlarmeAtivado: _somAlarme,
+      vibrarAoFinalizar: _vibrarAlarme,
       notificacoesSistema: _notifSistema,
       categorias: _categorias,
     );
@@ -214,6 +218,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 activeColor: Colors.cyanAccent,
                 contentPadding: EdgeInsets.zero,
                 onChanged: (val) => setState(() => _somAlarme = val),
+              ),
+              SwitchListTile(
+                value: _vibrarAlarme,
+                title: const Text("Vibrar Celular ao Finalizar", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                activeColor: Colors.cyanAccent,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (val) => setState(() => _vibrarAlarme = val),
               ),
               SwitchListTile(
                 value: _notifSistema,
