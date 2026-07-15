@@ -20,14 +20,5 @@ pomodoro_flutter/.flutter-plugins-dependencies
 pomodoro_flutter/.metadata
 pomodoro_flutter/.packages
 
-# Pasta de build padrão do Flutter (Ignora arquivos temporários pesados)
+# Pasta de build padrão do Flutter (Ignora arquivos temporários pesados inteiramente)
 pomodoro_flutter/build/
-
-# ==========================================
-# EXCEÇÕES DE DISTRIBUIÇÃO (Auto-Update)
-# ==========================================
-# Permite rastrear e enviar os APKs finais gerados para o Android
-!pomodoro_flutter/build/app/outputs/flutter-apk/*.apk
-
-# Permite rastrear e enviar a pasta compilada final de Release para o Windows
-!pomodoro_flutter/build/windows/x64/runner/Release/

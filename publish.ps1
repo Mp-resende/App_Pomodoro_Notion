@@ -77,13 +77,12 @@ Write-Host "🔒 Fechando processos antigos do aplicativo..." -ForegroundColor Y
 Stop-Process -Name "pomodoro_notion" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# 8. Copia os binários finais compilados de volta para a pasta de trabalho oficial
-Write-Host "🚚 Copiando artefatos finais para a pasta oficial do projeto..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path "$projetoNome\build\windows\x64\runner" -Force | Out-Null
-New-Item -ItemType Directory -Path "$projetoNome\build\app\outputs" -Force | Out-Null
+# 8. Copia os binários finais compilados para a pasta de releases rastreada pelo Git
+Write-Host "🚚 Copiando artefatos finais para a pasta de releases oficiais..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path "releases\windows" -Force | Out-Null
 
-Copy-Item -Path "$tempPath\build\windows\x64\runner\Release" -Destination "$projetoNome\build\windows\x64\runner\" -Recurse -Force
-Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk" -Destination "$projetoNome\build\app\outputs\" -Recurse -Force
+Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "releases\windows\" -Recurse -Force
+Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*.apk" -Destination "releases\" -Force
 
 # 9. Limpa a pasta temporária de build
 Write-Host "🧹 Removendo arquivos temporários..." -ForegroundColor Yellow
