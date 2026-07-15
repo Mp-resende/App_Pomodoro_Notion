@@ -159,4 +159,47 @@ class NotificationService {
       stderr.writeln('Erro ao cancelar notificações: $e');
     }
   }
+
+  // Exibe uma notificação contínua na barra com o cronômetro nativo do Android
+  Future<void> exibirNotificacaoCronometro(String titulo, String mensagem, DateTime tempoFim) async {
+    await inicializar();
+
+    if (!Platform.isAndroid) return;
+
+    final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'pomodoro_active_channel',
+      'Cronometro Ativo',
+      channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status',
+      importance: Importance.low, // Baixa importância para não vibrar/fazer barulho a cada início
+      priority: Priority.low,
+      playSound: false,
+      ongoing: true, // Notificação persistente (não pode ser arrastada para o lado)
+      showWhen: true,
+      usesChronometer: true,
+      chronometerCountDown: true,
+      when: tempoFim.millisecondsSinceEpoch,
+    );
+
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    try {
+      await _notificationsPlugin.show(
+        1, // ID fixo para a notificação ativa (assim ela é sobrescrita)
+        titulo,
+        mensagem,
+        platformChannelSpecifics,
+      );
+    } catch (e) {
+      stderr.writeln('Erro ao exibir cronometro na notificacao: $e');
+    }
+  }
+
+  // Remove a notificação persistente do cronômetro
+  Future<void> removerNotificacaoCronometro() async {
+    try {
+      await _notificationsPlugin.cancel(1);
+    } catch (_) {}
+  }
 }

@@ -337,6 +337,12 @@ class TimerProvider with ChangeNotifier {
           "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
           tempoFim!,
         );
+        // Exibe o cronômetro nativo persistente na barra de status
+        notificationService.exibirNotificacaoCronometro(
+          "🍅 Foco em Andamento",
+          tarefaAtual,
+          tempoFim!,
+        );
       });
     }
 
@@ -366,16 +372,23 @@ class TimerProvider with ChangeNotifier {
             modoDescanso ? "Pronto para outro Pomodoro?" : "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
             tempoFim!,
           );
+          // Retoma o cronômetro persistente na barra de status
+          notificationService.exibirNotificacaoCronometro(
+            modoDescanso ? "☕ Descanso em Andamento" : "🍅 Foco em Andamento",
+            tarefaAtual.isEmpty ? "Aproveite para relaxar!" : tarefaAtual,
+            tempoFim!,
+          );
         });
       }
       
       labelStatus = modoDescanso ? "Descansando..." : "Focado...";
       textStatusColor = modoDescanso ? "#FF9800" : "#FFD700";
     } else {
-      // Pausando: cancela a notificação agendada
+      // Pausando: cancela a notificação agendada e o cronômetro persistente
       pausado = true;
       if (Platform.isAndroid) {
         notificationService.cancelarNotificacoes();
+        notificationService.removerNotificacaoCronometro();
       }
       labelStatus = "Pausado";
       textStatusColor = "#FFA500";
@@ -387,6 +400,7 @@ class TimerProvider with ChangeNotifier {
     _ticker?.cancel();
     if (Platform.isAndroid) {
       notificationService.cancelarNotificacoes();
+      notificationService.removerNotificacaoCronometro();
     }
     tempoRestante = config.tempoTrabalho * 60;
     rodando = false;
@@ -426,6 +440,12 @@ class TimerProvider with ChangeNotifier {
           2,
           "✅ Descanso Concluído!",
           "Pronto para outro Pomodoro?",
+          tempoFim!,
+        );
+        // Exibe o cronômetro nativo do descanso
+        notificationService.exibirNotificacaoCronometro(
+          longo ? "☕ Descanso Longo em Andamento" : "☕ Descanso em Andamento",
+          "Aproveite para relaxar!",
           tempoFim!,
         );
       });
@@ -505,6 +525,10 @@ class TimerProvider with ChangeNotifier {
     pomodorosHoje++;
     _salvarContadorHoje();
 
+    if (Platform.isAndroid) {
+      notificationService.removerNotificacaoCronometro();
+    }
+
     labelStatus = "Enviando...";
     textStatusColor = "#2196F3";
     labelDecorrido = "";
@@ -539,6 +563,10 @@ class TimerProvider with ChangeNotifier {
     rodando = false;
     tempoFim = DateTime.now();
 
+    if (Platform.isAndroid) {
+      notificationService.removerNotificacaoCronometro();
+    }
+
     labelStatus = "Encerrando sessão...";
     textStatusColor = "#2196F3";
     labelDecorrido = "";
@@ -553,6 +581,10 @@ class TimerProvider with ChangeNotifier {
     textStatusColor = "#4CAF50";
     progresso = 0.0;
     notifyListeners();
+
+    if (Platform.isAndroid) {
+      notificationService.removerNotificacaoCronometro();
+    }
 
     try {
       notificationService.tocarAlarme();
