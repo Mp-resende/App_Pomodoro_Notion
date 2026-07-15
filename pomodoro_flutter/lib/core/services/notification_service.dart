@@ -3,10 +3,14 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'dart:async';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+
+  // Stream para propagar eventos de clique nos botões de ação
+  static final StreamController<String?> onActionSelected = StreamController<String?>.broadcast();
 
   // Inicializa o serviço e solicita permissões se necessário
   Future<void> inicializar() async {
@@ -40,7 +44,10 @@ class NotificationService {
       await _notificationsPlugin.initialize(
         initializationSettings,
         onDidReceiveNotificationResponse: (NotificationResponse response) {
-          // Ação executada ao clicar na notificação (opcional)
+          // Ação executada ao clicar em um botão específico da notificação
+          if (response.actionId != null) {
+            onActionSelected.add(response.actionId);
+          }
         },
       );
 
@@ -205,5 +212,51 @@ class NotificationService {
     try {
       await _notificationsPlugin.cancel(1);
     } catch (_) {}
+  }
+
+  // Notificação heads-up de prioridade máxima com botões interativos
+  Future<void> notificarFimFoco(String titulo, String mensagem) async {
+    await inicializar();
+
+    if (!Platform.isAndroid) return;
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+      'pomodoro_end_channel_v4',
+      'Fim da Sessao (Acoes)',
+      channelDescription: 'Dispara alertas imediatos ao final do tempo de trabalho com botões de acao',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      visibility: NotificationVisibility.public,
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'action_comecar_descanso',
+          'Começar Descanso',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'action_pular_descanso',
+          'Pular',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+      ],
+    );
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+    );
+
+    try {
+      await _notificationsPlugin.show(
+        999, // ID fixo para a notificação de finalização do foco
+        titulo,
+        mensagem,
+        platformChannelSpecifics,
+      );
+    } catch (e) {
+      stderr.writeln('Erro ao disparar notificacao heads-up: $e');
+    }
   }
 }

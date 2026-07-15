@@ -107,6 +107,15 @@ class TimerProvider with ChangeNotifier {
     inicializado = true;
     notifyListeners();
 
+    // Escuta eventos de botões interativos das notificações (Android)
+    NotificationService.onActionSelected.stream.listen((actionId) {
+      if (actionId == 'action_comecar_descanso') {
+        iniciarDescanso(precisaLongBreak());
+      } else if (actionId == 'action_pular_descanso') {
+        pularDescanso();
+      }
+    });
+
     // 6. Sincroniza sessões salvas offline (background)
     if (notionService != null) {
       _sincronizarOfflineEmBackground();
@@ -547,7 +556,11 @@ class TimerProvider with ChangeNotifier {
 
     // 3. Dispara a notificação de forma isolada e segura
     try {
-      notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+      if (Platform.isAndroid) {
+        notificationService.notificarFimFoco("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+      } else {
+        notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+      }
     } catch (_) {}
 
     // Força a janela do Windows a piscar ou vir para frente
