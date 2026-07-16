@@ -12,6 +12,9 @@ class NotificationService {
   // Stream para propagar eventos de clique nos botões de ação
   static final StreamController<String?> onActionSelected = StreamController<String?>.broadcast();
 
+  // Armazena ações de clique que abriram o aplicativo (Cold Start)
+  static String? acaoPendente;
+
   // Inicializa o serviço e solicita permissões se necessário
   Future<void> inicializar() async {
     if (_initialized) return;
@@ -46,10 +49,25 @@ class NotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           // Ação executada ao clicar em um botão específico da notificação
           if (response.actionId != null) {
+            acaoPendente = response.actionId;
             onActionSelected.add(response.actionId);
           }
         },
       );
+
+      // Captura detalhes se o aplicativo foi aberto a partir de uma notificação (Cold Start)
+      try {
+        final NotificationAppLaunchDetails? notificationAppLaunchDetails =
+            await _notificationsPlugin.getNotificationAppLaunchDetails();
+        if (notificationAppLaunchDetails?.didNotificationLaunchApp ?? false) {
+          final response = notificationAppLaunchDetails?.notificationResponse;
+          if (response?.actionId != null) {
+            acaoPendente = response?.actionId;
+          }
+        }
+      } catch (err) {
+        stderr.writeln('Erro ao buscar launcher details: $err');
+      }
 
       // Solicita permissões de notificação explicitamente no Android (necessário no Android 13+)
       if (Platform.isAndroid) {

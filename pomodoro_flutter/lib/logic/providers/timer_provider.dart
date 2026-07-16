@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/notion_service.dart';
@@ -115,6 +116,19 @@ class TimerProvider with ChangeNotifier {
         pularDescanso();
       }
     });
+
+    // Trata ação de notificação pendente (Cold Start)
+    if (NotificationService.acaoPendente != null) {
+      final acao = NotificationService.acaoPendente;
+      NotificationService.acaoPendente = null; // Limpa imediatamente
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (acao == 'action_comecar_descanso') {
+          iniciarDescanso(precisaLongBreak());
+        } else if (acao == 'action_pular_descanso') {
+          pularDescanso();
+        }
+      });
+    }
 
     // 6. Sincroniza sessões salvas offline (background)
     if (notionService != null) {
