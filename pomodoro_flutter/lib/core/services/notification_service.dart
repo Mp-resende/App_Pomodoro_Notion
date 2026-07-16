@@ -71,9 +71,16 @@ class NotificationService {
 
       // Solicita permissões de notificação explicitamente no Android (necessário no Android 13+)
       if (Platform.isAndroid) {
-        await _notificationsPlugin
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
+        final androidPlugin = _notificationsPlugin
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          await androidPlugin.requestNotificationsPermission();
+          try {
+            await androidPlugin.requestExactAlarmsPermission();
+          } catch (_) {
+            // Em APIs abaixo de 33 esse método pode não existir
+          }
+        }
       }
 
       _initialized = true;
@@ -238,18 +245,21 @@ class NotificationService {
 
     if (!Platform.isAndroid) return;
 
-    final canalId = comSom ? 'pomodoro_end_channel_sound_v5' : 'pomodoro_end_channel_silent_v5';
-    final canalNome = comSom ? 'Fim da Sessao (Com Som)' : 'Fim da Sessao (Apenas Vibrar)';
+    final canalId = comSom ? 'pomodoro_end_channel_sound_v6' : 'pomodoro_end_channel_silent_v6';
+    final canalNome = comSom ? 'Fim da Sessao (Com Som) v6' : 'Fim da Sessao (Apenas Vibrar) v6';
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       canalId,
       canalNome,
       channelDescription: 'Dispara alertas imediatos ao final do tempo de trabalho com botões de acao',
       importance: Importance.max,
-      priority: Priority.high,
+      priority: Priority.max,
       playSound: comSom,
       enableVibration: comVibracao,
       visibility: NotificationVisibility.public,
+      fullScreenIntent: true,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      category: AndroidNotificationCategory.alarm,
       actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
           'action_comecar_descanso',
@@ -297,18 +307,19 @@ class NotificationService {
     try {
       final tzDateTime = tz.TZDateTime.from(instante, tz.local);
 
-      final canalId = comSom ? 'pomodoro_end_channel_sound_v5' : 'pomodoro_end_channel_silent_v5';
-      final canalNome = comSom ? 'Fim da Sessao (Com Som)' : 'Fim da Sessao (Apenas Vibrar)';
+      final canalId = comSom ? 'pomodoro_end_channel_sound_v6' : 'pomodoro_end_channel_silent_v6';
+      final canalNome = comSom ? 'Fim da Sessao (Com Som) v6' : 'Fim da Sessao (Apenas Vibrar) v6';
 
       final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         canalId,
         canalNome,
         channelDescription: 'Dispara alertas imediatos ao final do tempo de trabalho com botões de acao',
         importance: Importance.max,
-        priority: Priority.high,
+        priority: Priority.max,
         playSound: comSom,
         enableVibration: comVibracao,
         visibility: NotificationVisibility.public,
+        fullScreenIntent: true,
         audioAttributesUsage: AudioAttributesUsage.alarm,
         category: AndroidNotificationCategory.alarm,
         actions: <AndroidNotificationAction>[

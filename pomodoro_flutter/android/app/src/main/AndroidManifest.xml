@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Permissão para acordar o dispositivo (alarmes sonoros em background) -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <!-- Permissões para o flutter_ringtone_player acessar o player de mídia do sistema -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <!-- Permite conexões HTTP/HTTPS para integração com a API do Notion -->
