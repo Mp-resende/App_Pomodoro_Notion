@@ -341,11 +341,13 @@ class TimerProvider with ChangeNotifier {
     // Agenda o alarme no Android para o momento exato
     if (Platform.isAndroid) {
       notificationService.cancelarNotificacoes().then((_) {
-        notificationService.agendarNotificacao(
-          1,
+        notificationService.agendarNotificacaoFimFoco(
+          999, // Unificado com o ID da notificação final
           "🎉 Pomodoro Concluído!",
           "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
           tempoFim!,
+          comSom: config.somAlarmeAtivado,
+          comVibracao: config.vibrarAoFinalizar,
         );
         // Exibe o cronômetro nativo persistente na barra de status
         notificationService.exibirNotificacaoCronometro(
@@ -376,12 +378,23 @@ class TimerProvider with ChangeNotifier {
       
       if (Platform.isAndroid) {
         notificationService.cancelarNotificacoes().then((_) {
-          notificationService.agendarNotificacao(
-            modoDescanso ? 2 : 1,
-            modoDescanso ? "✅ Descanso Concluído!" : "🎉 Pomodoro Concluído!",
-            modoDescanso ? "Pronto para outro Pomodoro?" : "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
-            tempoFim!,
-          );
+          if (modoDescanso) {
+            notificationService.agendarNotificacao(
+              2,
+              "✅ Descanso Concluído!",
+              "Pronto para outro Pomodoro?",
+              tempoFim!,
+            );
+          } else {
+            notificationService.agendarNotificacaoFimFoco(
+              999,
+              "🎉 Pomodoro Concluído!",
+              "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
+              tempoFim!,
+              comSom: config.somAlarmeAtivado,
+              comVibracao: config.vibrarAoFinalizar,
+            );
+          }
           // Retoma o cronômetro persistente na barra de status
           notificationService.exibirNotificacaoCronometro(
             modoDescanso ? "☕ Descanso em Andamento" : "🍅 Foco em Andamento",
@@ -539,6 +552,7 @@ class TimerProvider with ChangeNotifier {
 
     if (Platform.isAndroid) {
       notificationService.removerNotificacaoCronometro();
+      notificationService.cancelarNotificacoes();
     }
 
     labelStatus = "Enviando...";

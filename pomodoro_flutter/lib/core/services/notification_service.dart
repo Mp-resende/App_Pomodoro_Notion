@@ -263,4 +263,67 @@ class NotificationService {
       stderr.writeln('Erro ao disparar notificacao heads-up: $e');
     }
   }
+
+  // Agenda a notificação de término de foco de alta prioridade com botões de ação nativos no Android
+  Future<void> agendarNotificacaoFimFoco(
+    int id,
+    String titulo,
+    String mensagem,
+    DateTime instante, {
+    required bool comSom,
+    required bool comVibracao,
+  }) async {
+    await inicializar();
+    if (!Platform.isAndroid) return;
+
+    try {
+      final tzDateTime = tz.TZDateTime.from(instante, tz.local);
+
+      final canalId = comSom ? 'pomodoro_end_channel_sound_v5' : 'pomodoro_end_channel_silent_v5';
+      final canalNome = comSom ? 'Fim da Sessao (Com Som)' : 'Fim da Sessao (Apenas Vibrar)';
+
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        canalId,
+        canalNome,
+        channelDescription: 'Dispara alertas imediatos ao final do tempo de trabalho com botões de acao',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: comSom,
+        enableVibration: comVibracao,
+        visibility: NotificationVisibility.public,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        category: AndroidNotificationCategory.alarm,
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction(
+            'action_comecar_descanso',
+            'Começar Descanso',
+            showsUserInterface: true,
+            cancelNotification: true,
+          ),
+          AndroidNotificationAction(
+            'action_pular_descanso',
+            'Pular',
+            showsUserInterface: true,
+            cancelNotification: true,
+          ),
+        ],
+      );
+
+      final NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+      );
+
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        titulo,
+        mensagem,
+        tzDateTime,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      stderr.writeln('Erro ao agendar notificacao heads-up futura: $e');
+    }
+  }
 }
