@@ -31,11 +31,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Registra o callback para abrir o popup de comemoração com segurança pós-frame
       timerProvider.onSessionFinished = () {
         if (mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            try {
-              CompletionPopup.mostrar(context, timerProvider);
-            } catch (e) {
-              debugPrint("Erro ao abrir popup de término: $e");
+          // Pequeno delay para garantir que a FocusScreen (tela sempre ativa)
+          // se feche completamente antes de tentarmos empilhar o popup de conclusão.
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              try {
+                CompletionPopup.mostrar(context, timerProvider);
+              } catch (e) {
+                debugPrint("Erro ao abrir popup de término: $e");
+              }
             }
           });
         }
