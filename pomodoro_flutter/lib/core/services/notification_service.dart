@@ -108,7 +108,7 @@ class NotificationService {
 
     try {
       await _notificationsPlugin.show(
-        DateTime.now().millisecond, // ID dinâmico para não sobrepor notificações
+        DateTime.now().millisecondsSinceEpoch % 100000, // ID com baixa probabilidade de colisão
         titulo,
         mensagem,
         platformChannelSpecifics,

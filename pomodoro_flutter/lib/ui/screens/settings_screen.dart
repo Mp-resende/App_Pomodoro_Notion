@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/pomodoro_config.dart';
 import '../../../logic/providers/timer_provider.dart';
-import 'package:pomodoro_notion/core/services/update_service.dart';
+import '../../../core/services/update_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);

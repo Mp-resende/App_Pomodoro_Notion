@@ -62,9 +62,8 @@ class TimerProvider with ChangeNotifier {
   TimerProvider({
     required this.storageService,
     required this.notificationService,
-  }) {
-    inicializar();
-  }
+  });
+  // Nota: inicializar() é chamado explicitamente no main.dart com await para evitar race conditions.
 
   // Carrega configurações, histórico, contador e credenciais
   Future<void> inicializar() async {

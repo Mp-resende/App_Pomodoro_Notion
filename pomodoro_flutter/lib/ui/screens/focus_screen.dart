@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -55,8 +54,9 @@ class _FocusScreenState extends State<FocusScreen> {
             child: Consumer<TimerProvider>(
               builder: (context, timer, child) {
                 // Ao terminar a sessão, fechar o modo foco automaticamente
-                // para que a tela inicial exiba o popup original lindamente
-                if (timer.tempoRestante == 0 && !timer.rodando) {
+                // para que a tela inicial exiba o popup original lindamente.
+                // Verifica tempoInicio para não fechar antes de qualquer sessão iniciar.
+                if (timer.tempoRestante == 0 && !timer.rodando && timer.tempoInicio != null) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (Navigator.of(context).canPop()) {
                       Navigator.of(context).pop();
