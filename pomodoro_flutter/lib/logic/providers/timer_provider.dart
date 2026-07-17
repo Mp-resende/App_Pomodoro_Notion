@@ -584,19 +584,24 @@ class TimerProvider with ChangeNotifier {
       } catch (_) {}
     }
 
-    // 3. Dispara a notificação de forma isolada e segura
-    try {
-      if (Platform.isAndroid) {
-        notificationService.notificarFimFoco(
-          "🎉 Pomodoro Concluído!",
-          "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
-          comSom: config.somAlarmeAtivado,
-          comVibracao: config.vibrarAoFinalizar,
-        );
-      } else {
-        notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
-      }
-    } catch (_) {}
+    // Verifica se o aplicativo está ativo (aberto na tela)
+    final isInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
+    // 3. Dispara a notificação de forma isolada e segura (APENAS se estiver minimizado/ausente)
+    if (!isInForeground) {
+      try {
+        if (Platform.isAndroid) {
+          notificationService.notificarFimFoco(
+            "🎉 Pomodoro Concluído!",
+            "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min",
+            comSom: config.somAlarmeAtivado,
+            comVibracao: config.vibrarAoFinalizar,
+          );
+        } else {
+          notificationService.notificar("🎉 Pomodoro Concluído!", "Tarefa: $tarefaAtual\nTempo: ${config.tempoTrabalho} min");
+        }
+      } catch (_) {}
+    }
 
     // Força a janela do Windows a piscar ou vir para frente
     if (Platform.isWindows) {

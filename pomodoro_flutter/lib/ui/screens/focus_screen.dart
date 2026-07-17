@@ -54,6 +54,16 @@ class _FocusScreenState extends State<FocusScreen> {
           Center(
             child: Consumer<TimerProvider>(
               builder: (context, timer, child) {
+                // Ao terminar a sessão, fechar o modo foco automaticamente
+                // para que a tela inicial exiba o popup original lindamente
+                if (timer.tempoRestante == 0 && !timer.rodando) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+                }
+
                 // Formatação do tempo em MM:SS
                 final minutos = (timer.tempoRestante ~/ 60).toString().padLeft(2, '0');
                 final segundos = (timer.tempoRestante % 60).toString().padLeft(2, '0');
