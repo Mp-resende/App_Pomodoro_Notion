@@ -6,6 +6,7 @@ import '../widgets/autocomplete_input.dart';
 import '../widgets/circular_timer.dart';
 import '../widgets/relation_selector.dart';
 import '../widgets/status_indicator.dart';
+import 'focus_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -407,24 +408,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
 
                 const SizedBox(height: 14),
-                // Botão de acesso à tela de Configurações
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                      );
-                    },
-                    icon: Icon(Icons.settings_rounded, size: 14, color: Colors.white.withOpacity(0.4)),
-                    label: Text(
-                      "Configurações",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                // Botões de rodapé: Modo Foco e Configurações
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (context) => const FocusScreen()),
+                        );
+                      },
+                      icon: Icon(Icons.remove_red_eye_outlined, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                      label: Text(
+                        "Always Awake",
+                        style: TextStyle(
+                          color: Colors.cyanAccent.withOpacity(0.6),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        );
+                      },
+                      icon: Icon(Icons.settings_rounded, size: 14, color: Colors.white.withOpacity(0.4)),
+                      label: Text(
+                        "Configurações",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
               ],
