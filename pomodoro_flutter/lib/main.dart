@@ -6,6 +6,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/api_server.dart';
 import 'logic/providers/timer_provider.dart';
 import 'logic/providers/relation_provider.dart';
+import 'logic/providers/dashboard_provider.dart';
 import 'ui/screens/home_screen.dart';
 
 import 'core/services/tray_service.dart';
@@ -50,6 +51,9 @@ void main() async {
   // 3. Cria o Provider de relação do Notion referenciando o Timer
   final relationProvider = RelationProvider(timerProvider: timerProvider);
 
+  // Cria o Provider do Dashboard
+  final dashboardProvider = DashboardProvider(timerProvider: timerProvider);
+
   // 4. Inicializa o servidor HTTP da API Local (Porta 8082 - exclusivo Windows)
   if (Platform.isWindows) {
     final apiServer = ApiServer(timerProvider: timerProvider);
@@ -63,6 +67,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider<TimerProvider>.value(value: timerProvider),
         ChangeNotifierProvider<RelationProvider>.value(value: relationProvider),
+        ChangeNotifierProvider<DashboardProvider>.value(value: dashboardProvider),
       ],
       child: const MyApp(),
     ),

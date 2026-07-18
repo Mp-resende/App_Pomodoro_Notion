@@ -60,6 +60,7 @@ class TimerProvider with ChangeNotifier {
   // Callbacks para eventos da UI
   VoidCallback? onSessionFinished;
   VoidCallback? onBreakFinished;
+  VoidCallback? onSessionRecorded;
 
   TimerProvider({
     required this.storageService,
@@ -711,6 +712,9 @@ class TimerProvider with ChangeNotifier {
       labelStatus = pomodoroCompleto ? "✓ Registrado no Notion!" : "✓ Sessão encerrada e registrada!";
       textStatusColor = "#4CAF50";
       await _atualizarSessoesOfflineCount();
+      if (onSessionRecorded != null) {
+        onSessionRecorded!();
+      }
       if (!pomodoroCompleto) {
         await Future.delayed(const Duration(seconds: 2));
         resetar();
@@ -779,6 +783,9 @@ class TimerProvider with ChangeNotifier {
       if (qtd > 0) {
         labelStatus = "✓ Sincronizadas $qtd sessões offline!";
         textStatusColor = "#4CAF50";
+        if (onSessionRecorded != null) {
+          onSessionRecorded!();
+        }
         notifyListeners();
       }
     });
@@ -803,6 +810,9 @@ class TimerProvider with ChangeNotifier {
     if (qtd > 0) {
       labelStatus = "✓ Sincronizadas $qtd sessões offline!";
       textStatusColor = "#4CAF50";
+      if (onSessionRecorded != null) {
+        onSessionRecorded!();
+      }
       notifyListeners();
     }
     return qtd;

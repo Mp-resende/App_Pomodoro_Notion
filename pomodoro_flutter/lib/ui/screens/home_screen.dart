@@ -10,6 +10,7 @@ import '../widgets/circular_timer.dart';
 import '../widgets/relation_selector.dart';
 import '../widgets/status_indicator.dart';
 import 'focus_screen.dart';
+import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -587,6 +588,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                  );
+                },
+                icon: Icon(Icons.bar_chart_rounded, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                label: Text(
+                  "Gráficos",
+                  style: TextStyle(
+                    color: Colors.cyanAccent.withOpacity(0.6),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               TextButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(

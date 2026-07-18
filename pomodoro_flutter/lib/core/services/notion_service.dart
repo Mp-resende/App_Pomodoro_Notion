@@ -333,4 +333,209 @@ class NotionService {
     }
     return null;
   }
+
+  // Busca todos os dados necessários para o dashboard (Matérias, Estudos Diários, Intervalos de Estudo)
+  // e faz o relacionamento (Join) lógico em memória.
+  Future<Map<String, dynamic>> obterDadosEstatisticas() async {
+    if (!connected) return {};
+
+    try {
+      final materiaDbId = '2aa75b83-d245-80a5-a194-ede969ff4e45';
+      final estudosDiariosDbId = '2aa75b83-d245-80d9-b29e-c362f3ebbd09';
+      final intervalosDbId = databaseId;
+
+      // 1. Busca os dados de cada tabela em paralelo
+      final resultados = await Future.wait([
+        _queryDatabase(materiaDbId),
+        _queryDatabase(estudosDiariosDbId),
+        _queryDatabase(intervalosDbId),
+      ]).timeout(const Duration(seconds: 20));
+
+      final materiasRaw = resultados[0];
+      final estudosDiariosRaw = resultados[1];
+      final intervalosRaw = resultados[2];
+
+      // 2. Mapeia as Matérias: { id: { nome, meta, area } }
+      final Map<String, Map<String, dynamic>> materiasMap = {};
+      for (final page in materiasRaw) {
+        final props = page['properties'] as Map<String, dynamic>? ?? {};
+        String nome = '';
+        for (final prop in props.values) {
+          if (prop['type'] == 'title') {
+            final titleArray = prop['title'] as List<dynamic>? ?? [];
+            nome = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+            break;
+          }
+        }
+
+        final areaProp = props['Área'] as Map<String, dynamic>?;
+        final areaMap = areaProp != null ? areaProp['select'] as Map<String, dynamic>? : null;
+        final area = areaMap != null ? areaMap['name']?.toString() : null;
+
+        final metaProp = props['Meta Semanal (h)'] as Map<String, dynamic>?;
+        final meta = metaProp != null && metaProp['type'] == 'number'
+            ? (metaProp['number'] as num?)?.toDouble()
+            : null;
+
+        materiasMap[page['id']] = {
+          'id': page['id'],
+          'nome': nome,
+          'area': area,
+          'meta_semanal': meta,
+        };
+      }
+
+      // 3. Mapeia os Estudos Diários (Tópicos): { id: { nome, tipo, materia_id } }
+      final Map<String, Map<String, dynamic>> estudosDiariosMap = {};
+      for (final page in estudosDiariosRaw) {
+        final props = page['properties'] as Map<String, dynamic>? ?? {};
+        String nome = '';
+        for (final prop in props.values) {
+          if (prop['type'] == 'title') {
+            final titleArray = prop['title'] as List<dynamic>? ?? [];
+            nome = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+            break;
+          }
+        }
+
+        final tipoProp = props['Tipo de Estudo'] as Map<String, dynamic>?;
+        final tipoMap = tipoProp != null ? tipoProp['select'] as Map<String, dynamic>? : null;
+        final tipo = tipoMap != null ? tipoMap['name']?.toString() : null;
+
+        final relationProp = props['Banco de Dados: Matérias'] as Map<String, dynamic>?;
+        String? materiaId;
+        if (relationProp != null && relationProp['type'] == 'relation') {
+          final relArray = relationProp['relation'] as List<dynamic>? ?? [];
+          if (relArray.isNotEmpty) {
+            materiaId = relArray.first['id']?.toString();
+          }
+        }
+
+        estudosDiariosMap[page['id']] = {
+          'id': page['id'],
+          'nome': nome,
+          'tipo': tipo,
+          'materia_id': materiaId,
+        };
+      }
+
+      // 4. Constrói a lista final de sessões detalhadas
+      final List<Map<String, dynamic>> sessoesList = [];
+      for (final page in intervalosRaw) {
+        final props = page['properties'] as Map<String, dynamic>? ?? {};
+        String nome = '';
+        for (final prop in props.values) {
+          if (prop['type'] == 'title') {
+            final titleArray = prop['title'] as List<dynamic>? ?? [];
+            nome = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+            break;
+          }
+        }
+
+        final inicioProp = props['Início'] as Map<String, dynamic>?;
+        final dateMap = inicioProp != null ? inicioProp['date'] as Map<String, dynamic>? : null;
+        final inicioStr = dateMap != null ? dateMap['start']?.toString() : null;
+
+        final fimProp = props['Fim'] as Map<String, dynamic>?;
+        final endDateMap = fimProp != null ? fimProp['date'] as Map<String, dynamic>? : null;
+        final fimStr = endDateMap != null ? endDateMap['start']?.toString() : null;
+
+        if (inicioStr == null || fimStr == null) continue;
+
+        final techProp = props['Tecnologia'] as Map<String, dynamic>?;
+        final techMap = techProp != null ? techProp['select'] as Map<String, dynamic>? : null;
+        final tech = techMap != null ? techMap['name']?.toString() ?? 'Outro' : 'Outro';
+
+        final relationProp = props['Sessão de Estudo'] as Map<String, dynamic>?;
+        String? sessaoEstudoId;
+        if (relationProp != null && relationProp['type'] == 'relation') {
+          final relArray = relationProp['relation'] as List<dynamic>? ?? [];
+          if (relArray.isNotEmpty) {
+            sessaoEstudoId = relArray.first['id']?.toString();
+          }
+        }
+
+        // Resoluções de relações em cascata
+        String topicoNome = 'Sem Tópico';
+        String tipoEstudo = 'Não Definido';
+        String materiaNome = 'Sem Matéria';
+        double? metaSemanal;
+        String? areaMateria;
+
+        if (sessaoEstudoId != null && estudosDiariosMap.containsKey(sessaoEstudoId)) {
+          final topico = estudosDiariosMap[sessaoEstudoId]!;
+          topicoNome = topico['nome'] ?? 'Sem Tópico';
+          tipoEstudo = topico['tipo'] ?? 'Não Definido';
+          final matId = topico['materia_id'];
+
+          if (matId != null && materiasMap.containsKey(matId)) {
+            final mat = materiasMap[matId]!;
+            materiaNome = mat['nome'] ?? 'Sem Matéria';
+            metaSemanal = mat['meta_semanal'];
+            areaMateria = mat['area'];
+          }
+        }
+
+        sessoesList.add({
+          'id': page['id'],
+          'intervalo': nome,
+          'inicio': inicioStr,
+          'fim': fimStr,
+          'tecnologia': tech,
+          'topico_id': sessaoEstudoId,
+          'topico_nome': topicoNome,
+          'tipo_estudo': tipoEstudo,
+          'materia_nome': materiaNome,
+          'materia_meta_semanal': metaSemanal,
+          'materia_area': areaMateria,
+        });
+      }
+
+      return {
+        'materias': materiasMap.values.toList(),
+        'sessoes': sessoesList,
+        'atualizado_em': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      stderr.writeln('Erro ao buscar dados do dashboard: $e');
+      return {};
+    }
+  }
+
+  // Helper para consultar bases de dados de forma genérica com limite
+  Future<List<dynamic>> _queryDatabase(String dbId) async {
+    final url = Uri.parse('https://api.notion.com/v1/databases/$dbId/query');
+    Map<String, dynamic> body = {};
+
+    // Se for a tabela de Intervalos, ordena pelas sessões mais recentes primeiro
+    if (dbId == databaseId) {
+      body = {
+        "sorts": [
+          {
+            "property": "Início",
+            "direction": "descending"
+          }
+        ],
+        "page_size": 100
+      };
+    } else {
+      // Para as tabelas menores, busca até 100 itens sem ordenação específica
+      body = {
+        "page_size": 100
+      };
+    }
+
+    final response = await http.post(
+      url,
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['results'] as List<dynamic>? ?? [];
+    } else {
+      throw Exception('Falha ao consultar database $dbId: ${response.statusCode}');
+    }
+  }
 }
