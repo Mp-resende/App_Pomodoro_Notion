@@ -40,6 +40,8 @@ class TimerProvider with ChangeNotifier {
   PomodoroConfig config = PomodoroConfig();
   List<String> historicoTarefas = [];
   bool inicializado = false;
+  int sessoesOfflineCount = 0; // Contador de sessões pendentes no Notion
+
 
   // Visualização de Status
   String labelStatus = "Pronto para começar";
@@ -131,6 +133,7 @@ class TimerProvider with ChangeNotifier {
 
     // 6. Sincroniza sessões salvas offline (background)
     if (notionService != null) {
+      await _atualizarSessoesOfflineCount();
       _sincronizarOfflineEmBackground();
     }
 
@@ -707,6 +710,7 @@ class TimerProvider with ChangeNotifier {
     if (sucesso) {
       labelStatus = pomodoroCompleto ? "✓ Registrado no Notion!" : "✓ Sessão encerrada e registrada!";
       textStatusColor = "#4CAF50";
+      await _atualizarSessoesOfflineCount();
       if (!pomodoroCompleto) {
         await Future.delayed(const Duration(seconds: 2));
         resetar();
@@ -719,6 +723,7 @@ class TimerProvider with ChangeNotifier {
           ? "✗ Erro no envio - Salvo localmente"
           : "⚠️ Sem conexão - Salvo localmente";
       textStatusColor = "#FF9800";
+      await _atualizarSessoesOfflineCount();
       if (!pomodoroCompleto) {
         await Future.delayed(const Duration(seconds: 2));
         resetar();
@@ -769,13 +774,38 @@ class TimerProvider with ChangeNotifier {
 
   void _sincronizarOfflineEmBackground() {
     if (notionService == null || !notionService!.connected) return;
-    notionService!.sincronizarSessoesOffline().then((qtd) {
+    notionService!.sincronizarSessoesOffline().then((qtd) async {
+      await _atualizarSessoesOfflineCount();
       if (qtd > 0) {
         labelStatus = "✓ Sincronizadas $qtd sessões offline!";
         textStatusColor = "#4CAF50";
         notifyListeners();
       }
     });
+  }
+
+  Future<void> _atualizarSessoesOfflineCount() async {
+    if (notionService != null) {
+      sessoesOfflineCount = await notionService!.contarSessoesOffline();
+      notifyListeners();
+    }
+  }
+
+  Future<int> forcarSincronizacaoOffline() async {
+    if (notionService == null) return 0;
+    
+    // Tenta validar e reconectar se estiver offline
+    await notionService!.verificarConexao(retries: 1);
+    
+    final qtd = await notionService!.sincronizarSessoesOffline();
+    await _atualizarSessoesOfflineCount();
+    
+    if (qtd > 0) {
+      labelStatus = "✓ Sincronizadas $qtd sessões offline!";
+      textStatusColor = "#4CAF50";
+      notifyListeners();
+    }
+    return qtd;
   }
 
   // Formatação do tempo restante (MM:SS)

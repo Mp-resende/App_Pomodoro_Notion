@@ -85,48 +85,96 @@ class StatusIndicator extends StatelessWidget {
               ),
           ],
         ),
-        // Alerta dinâmico de sessões offline pendentes
-        FutureBuilder<int>(
-          future: timerProvider.notionService?.contarSessoesOffline() ?? Future.value(0),
-          builder: (context, snapshot) {
-            final pendentes = snapshot.data ?? 0;
-            if (pendentes > 0) {
-              return Container(
-                margin: const EdgeInsets.only(top: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withOpacity(0.07),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.orangeAccent.withOpacity(0.18),
-                    width: 1,
+        // Alerta dinâmico de sessões offline pendentes (atualizado de forma reativa pelo provider)
+        if (timerProvider.sessoesOfflineCount > 0)
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Colors.orangeAccent.withOpacity(0.18),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.cloud_off_rounded,
+                  color: Colors.orangeAccent,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "${timerProvider.sessoesOfflineCount} sessão(ões) pendente(s) offline.",
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orangeAccent,
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Colors.orangeAccent,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "⚠️ $pendentes sessão(ões) pendente(s) aguardando sincronização com o Notion.",
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.orangeAccent,
+                // Botão de Sincronização Manual
+                Material(
+                  color: Colors.orangeAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  child: InkWell(
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Sincronizando tarefas pendentes com o Notion..."),
+                          duration: Duration(seconds: 1),
                         ),
+                      );
+                      final qtd = await timerProvider.forcarSincronizacaoOffline();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        if (qtd > 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("🎉 $qtd sessão(ões) sincronizada(s) com sucesso!"),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("⚠️ Não foi possível sincronizar. Verifique sua conexão."),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.sync_rounded,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            "Sincronizar",
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+              ],
+            ),
+          ),
       ],
     );
   }

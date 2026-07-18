@@ -8,6 +8,7 @@ import 'logic/providers/timer_provider.dart';
 import 'logic/providers/relation_provider.dart';
 import 'ui/screens/home_screen.dart';
 
+import 'core/services/tray_service.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() async {
@@ -16,6 +17,15 @@ void main() async {
   
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
+    windowManager.waitUntilReadyToShow(const WindowOptions(
+      size: Size(800, 680),
+      minimumSize: Size(280, 150),
+      center: true,
+      title: "Pomodoro Notion",
+    ), () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
   }
 
   // 1. Inicializa os serviços estruturais
@@ -29,6 +39,13 @@ void main() async {
     notificationService: notificationService,
   );
   await timerProvider.inicializar();
+
+  // Inicializa o ícone da bandeja do sistema no Windows
+  if (Platform.isWindows) {
+    await TrayService().inicializar(
+      onPlayPause: () => timerProvider.pausarRetomar(),
+    );
+  }
 
   // 3. Cria o Provider de relação do Notion referenciando o Timer
   final relationProvider = RelationProvider(timerProvider: timerProvider);
