@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'timer_provider.dart';
 
 class DashboardProvider with ChangeNotifier {
@@ -8,12 +8,38 @@ class DashboardProvider with ChangeNotifier {
   bool carregando = false;
   String? erroMessage;
 
+  // Filtros ativos
+  String? _materiaSelecionada;
+  DateTimeRange? _periodoSelecionado;
+
   DashboardProvider({required this.timerProvider}) {
     carregarCache();
     timerProvider.onSessionRecorded = () {
       atualizarDadosNotion();
     };
   }
+
+  // Getters e Setters de Filtros
+  String? get materiaSelecionada => _materiaSelecionada;
+  DateTimeRange? get periodoSelecionado => _periodoSelecionado;
+
+  void filtrarPorMateria(String? materia) {
+    _materiaSelecionada = materia;
+    notifyListeners();
+  }
+
+  void filtrarPorPeriodo(DateTimeRange? periodo) {
+    _periodoSelecionado = periodo;
+    notifyListeners();
+  }
+
+  void limparFiltros() {
+    _materiaSelecionada = null;
+    _periodoSelecionado = null;
+    notifyListeners();
+  }
+
+  bool get temFiltrosAtivos => _materiaSelecionada != null || _periodoSelecionado != null;
 
   // Carrega os dados persistidos no cache local para exibição instantânea
   Future<void> carregarCache() async {
@@ -73,10 +99,37 @@ class DashboardProvider with ChangeNotifier {
 
   bool get temDados => sessoes.isNotEmpty;
 
-  // Total de horas focadas no total acumulado
+  // Getter principal filtrado
+  List<dynamic> get sessoesFiltradas {
+    return sessoes.where((s) {
+      // 1. Filtro por matéria
+      if (_materiaSelecionada != null && s['materia_nome'] != _materiaSelecionada) {
+        return false;
+      }
+      // 2. Filtro por período de datas (inclusivo)
+      if (_periodoSelecionado != null) {
+        final inicioStr = s['inicio'] as String?;
+        if (inicioStr == null) return false;
+        
+        final inicio = DateTime.tryParse(inicioStr)?.toLocal();
+        if (inicio == null) return false;
+
+        // Compara ignorando horas/minutos para incluir todo o dia de início e fim
+        final dataInicioFiltro = DateTime(_periodoSelecionado!.start.year, _periodoSelecionado!.start.month, _periodoSelecionado!.start.day);
+        final dataFimFiltro = DateTime(_periodoSelecionado!.end.year, _periodoSelecionado!.end.month, _periodoSelecionado!.end.day, 23, 59, 59);
+
+        if (inicio.isBefore(dataInicioFiltro) || inicio.isAfter(dataFimFiltro)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  // Total de horas focadas filtrado
   double get totalHorasFocadas {
     double totalMinutos = 0;
-    for (final s in sessoes) {
+    for (final s in sessoesFiltradas) {
       final inicio = DateTime.tryParse(s['inicio'] ?? '');
       final fim = DateTime.tryParse(s['fim'] ?? '');
       if (inicio != null && fim != null) {
@@ -86,7 +139,7 @@ class DashboardProvider with ChangeNotifier {
     return totalMinutos / 60.0;
   }
 
-  // Matéria mais estudada (Materia líder de tempo)
+  // Matéria mais estudada (Materia líder de tempo) baseada no filtro
   String get materiaLider {
     final map = tempoPorMateria;
     if (map.isEmpty) return "Nenhuma";
@@ -101,24 +154,24 @@ class DashboardProvider with ChangeNotifier {
     return lider;
   }
 
-  // Média de tempo focado por sessão (em minutos)
+  // Média de tempo focado por sessão (em minutos) baseada no filtro
   double get mediaMinutosPorSessao {
-    if (sessoes.isEmpty) return 0.0;
+    if (sessoesFiltradas.isEmpty) return 0.0;
     double totalMinutos = 0;
-    for (final s in sessoes) {
+    for (final s in sessoesFiltradas) {
       final inicio = DateTime.tryParse(s['inicio'] ?? '');
       final fim = DateTime.tryParse(s['fim'] ?? '');
       if (inicio != null && fim != null) {
         totalMinutos += fim.difference(inicio).inMinutes;
       }
     }
-    return totalMinutos / sessoes.length;
+    return totalMinutos / sessoesFiltradas.length;
   }
 
   // Agrupamento: Tempo de estudo em Horas por Matéria
   Map<String, double> get tempoPorMateria {
     final Map<String, double> map = {};
-    for (final s in sessoes) {
+    for (final s in sessoesFiltradas) {
       final materia = s['materia_nome'] as String? ?? 'Sem Matéria';
       final inicio = DateTime.tryParse(s['inicio'] ?? '');
       final fim = DateTime.tryParse(s['fim'] ?? '');
@@ -133,7 +186,7 @@ class DashboardProvider with ChangeNotifier {
   // Agrupamento: Tempo de estudo em Horas por Tipo de Estudo (Teoria, Exercícios, etc.)
   Map<String, double> get tempoPorTipoEstudo {
     final Map<String, double> map = {};
-    for (final s in sessoes) {
+    for (final s in sessoesFiltradas) {
       final tipo = s['tipo_estudo'] as String? ?? 'Não Definido';
       final inicio = DateTime.tryParse(s['inicio'] ?? '');
       final fim = DateTime.tryParse(s['fim'] ?? '');
@@ -148,7 +201,7 @@ class DashboardProvider with ChangeNotifier {
   // Agrupamento: Tempo de estudo em Horas por Tecnologia
   Map<String, double> get tempoPorTecnologia {
     final Map<String, double> map = {};
-    for (final s in sessoes) {
+    for (final s in sessoesFiltradas) {
       final tech = s['tecnologia'] as String? ?? 'Outro';
       final inicio = DateTime.tryParse(s['inicio'] ?? '');
       final fim = DateTime.tryParse(s['fim'] ?? '');
@@ -160,18 +213,46 @@ class DashboardProvider with ChangeNotifier {
     return map;
   }
 
-  // Vetor das horas estudadas nos últimos 7 dias (para o gráfico de barras)
-  List<double> get tempoUltimos7Dias {
-    final List<double> valores = List.filled(7, 0.0);
+  // Lista de dias no período para gerar o gráfico de barras
+  List<DateTime> get diasNoPeriodo {
     final hoje = DateTime.now();
-    for (int i = 0; i < 7; i++) {
-      final dia = hoje.subtract(Duration(days: 6 - i));
+    final range = _periodoSelecionado ?? DateTimeRange(
+      start: hoje.subtract(const Duration(days: 6)),
+      end: hoje,
+    );
+
+    // Ajusta as datas de início e fim ignorando horas
+    final inicio = DateTime(range.start.year, range.start.month, range.start.day);
+    final fim = DateTime(range.end.year, range.end.month, range.end.day);
+
+    final List<DateTime> list = [];
+    var current = inicio;
+    
+    // Limita o gráfico de barras a no máximo 14 dias para evitar quebra de layout na UI
+    final limiteFim = fim.isAfter(inicio.add(const Duration(days: 13)))
+        ? inicio.add(const Duration(days: 13))
+        : fim;
+
+    while (current.isBefore(limiteFim) || current.isAtSameMomentAs(limiteFim)) {
+      list.add(current);
+      current = current.add(const Duration(days: 1));
+    }
+    return list;
+  }
+
+  // Vetor das horas estudadas por dia dentro do período selecionado
+  List<double> get tempoPorDiaNoPeriodo {
+    final dias = diasNoPeriodo;
+    final List<double> valores = List.filled(dias.length, 0.0);
+
+    for (int i = 0; i < dias.length; i++) {
+      final dia = dias[i];
       double minutosNoDia = 0;
-      for (final s in sessoes) {
-        final inicio = DateTime.tryParse(s['inicio'] ?? '');
-        if (inicio != null) {
-          final localInicio = inicio.toLocal();
-          if (localInicio.year == dia.year && localInicio.month == dia.month && localInicio.day == dia.day) {
+      for (final s in sessoesFiltradas) {
+        final inicioStr = s['inicio'] as String?;
+        if (inicioStr != null) {
+          final inicio = DateTime.tryParse(inicioStr)?.toLocal();
+          if (inicio != null && inicio.year == dia.year && inicio.month == dia.month && inicio.day == dia.day) {
             final fim = DateTime.tryParse(s['fim'] ?? '');
             if (fim != null) {
               minutosNoDia += fim.difference(inicio).inMinutes;
@@ -184,45 +265,47 @@ class DashboardProvider with ChangeNotifier {
     return valores;
   }
 
-  // Nomes dos dias da semana correspondentes aos últimos 7 dias
-  List<String> get diasUltimos7Dias {
-    final List<String> dias = [];
-    final hoje = DateTime.now();
+  // Nomes formatados dos dias da semana (Sáb 15, Dom 16, etc.) para o gráfico de barras
+  List<String> get diasStrNoPeriodo {
     final semanaStr = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    for (int i = 0; i < 7; i++) {
-      final dia = hoje.subtract(Duration(days: 6 - i));
-      dias.add(semanaStr[dia.weekday % 7]);
-    }
-    return dias;
+    return diasNoPeriodo.map((d) => "${semanaStr[d.weekday % 7]} ${d.day}").toList();
   }
 
-  // Progresso das metas semanais por matéria (Segunda-Feira até hoje)
+  // Progresso das metas semanais por matéria (Segunda-Feira até hoje ou semana selecionada)
   List<Map<String, dynamic>> get metasProgresso {
     final List<Map<String, dynamic>> list = [];
     final materias = dadosDashboard['materias'] as List<dynamic>? ?? [];
 
-    final agora = DateTime.now();
-    // Encontra a última segunda-feira à meia-noite
-    final segundaFeira = agora.subtract(Duration(days: agora.weekday - 1)).subtract(Duration(
-          hours: agora.hour,
-          minutes: agora.minute,
-          seconds: agora.second,
-          milliseconds: agora.millisecond,
-          microseconds: agora.microsecond,
-        ));
+    final DateTime inicioSemana;
+    if (_periodoSelecionado != null) {
+      // Se tiver período selecionado, usa o início dele como marco inicial
+      inicioSemana = DateTime(_periodoSelecionado!.start.year, _periodoSelecionado!.start.month, _periodoSelecionado!.start.day);
+    } else {
+      // Senão, pega a segunda-feira da semana atual à meia-noite
+      final agora = DateTime.now();
+      inicioSemana = DateTime(agora.year, agora.month, agora.day).subtract(Duration(days: agora.weekday - 1));
+    }
 
     for (final m in materias) {
       final nome = m['nome'] as String? ?? 'Sem Nome';
       final metaSemanal = (m['meta_semanal'] as num?)?.toDouble() ?? 0.0;
 
       double minutosFocados = 0;
-      for (final s in sessoes) {
+      for (final s in sessoes) { // Analisa as sessões completas para calcular progresso da meta
         if (s['materia_nome'] == nome) {
-          final inicio = DateTime.tryParse(s['inicio'] ?? '');
-          if (inicio != null && inicio.isAfter(segundaFeira)) {
-            final fim = DateTime.tryParse(s['fim'] ?? '');
-            if (fim != null) {
-              minutosFocados += fim.difference(inicio).inMinutes;
+          final inicioStr = s['inicio'] as String?;
+          if (inicioStr != null) {
+            final inicio = DateTime.tryParse(inicioStr)?.toLocal();
+            // Conta as horas da matéria se for após o início da semana selecionada e antes do fim dela
+            if (inicio != null && inicio.isAfter(inicioSemana)) {
+              if (_periodoSelecionado != null) {
+                final fimFiltro = DateTime(_periodoSelecionado!.end.year, _periodoSelecionado!.end.month, _periodoSelecionado!.end.day, 23, 59, 59);
+                if (inicio.isAfter(fimFiltro)) continue;
+              }
+              final fim = DateTime.tryParse(s['fim'] ?? '');
+              if (fim != null) {
+                minutosFocados += fim.difference(inicio).inMinutes;
+              }
             }
           }
         }

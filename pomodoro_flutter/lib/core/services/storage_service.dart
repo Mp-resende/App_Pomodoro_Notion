@@ -14,9 +14,10 @@ class StorageService {
   Future<Directory> getBaseDir() async {
     if (Platform.isWindows) {
       try {
-        // No Windows, tenta usar o diretório de execução atual (Directory.current)
-        // para facilitar a compatibilidade e leitura dos dados anteriores.
-        final dir = Directory.current;
+        // No Windows, usa o diretório onde o executável (.exe) está de fato localizado
+        // (parent de resolvedExecutable) em vez de Directory.current. Isso evita que o
+        // caminho mude dependendo de como o app foi iniciado (ex: via atalho ou prompt).
+        final dir = File(Platform.resolvedExecutable).parent;
         final testFile = File('${dir.path}/.write_test');
         await testFile.writeAsString('test');
         await testFile.delete();

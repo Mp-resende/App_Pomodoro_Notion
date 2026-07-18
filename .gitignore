@@ -22,3 +22,11 @@ pomodoro_flutter/.packages
 
 # Pasta de build padrão do Flutter (Ignora arquivos temporários pesados inteiramente)
 pomodoro_flutter/build/
+
+# Arquivos de dados locais contendo dados privados (como Token do Notion)
+**/config.json
+**/dashboard_cache.json
+**/pomodoros_contador.json
+**/sessoes_offline.json
+**/pomodoro.log
+**/historico_tarefas.json

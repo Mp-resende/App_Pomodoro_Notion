@@ -173,17 +173,23 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Barra de Filtros
+                _buildFilterBar(context, dashboard),
+                const SizedBox(height: 4),
+
                 // Cards de KPIs de Visão Geral
                 _buildKPIs(dashboard),
                 const SizedBox(height: 20),
 
-                // Gráfico 1: Horas por Matéria
-                _buildSectionTitle('Distribuição de Estudos por Matéria'),
-                _buildPieChartCard(dashboard),
+                // Gráfico 1: Horas por Matéria ou Detalhes da Matéria
+                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Detalhamento da Matéria' : 'Distribuição de Estudos por Matéria'),
+                dashboard.materiaSelecionada != null
+                    ? _buildMateriaDetalheCard(dashboard)
+                    : _buildPieChartCard(dashboard),
                 const SizedBox(height: 24),
 
-                // Gráfico 2: Evolução Diária (Últimos 7 dias)
-                _buildSectionTitle('Evolução de Foco (Últimos 7 dias)'),
+                // Gráfico 2: Evolução Diária
+                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Evolução de Foco: ${dashboard.materiaSelecionada}' : 'Evolução de Foco'),
                 _buildBarChartCard(dashboard),
                 const SizedBox(height: 24),
 
@@ -193,7 +199,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 const SizedBox(height: 24),
 
                 // Tipo de Estudo
-                _buildSectionTitle('Metodologias de Estudo'),
+                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Metodologias de Estudo: ${dashboard.materiaSelecionada}' : 'Metodologias de Estudo'),
                 _buildTipoEstudoCard(dashboard),
                 const SizedBox(height: 24),
 
@@ -410,10 +416,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
-  // Gráfico de Barras (Evolução Semanal)
+  // Gráfico de Barras (Evolução Semanal ou Personalizada)
   Widget _buildBarChartCard(DashboardProvider dashboard) {
-    final valores = dashboard.tempoUltimos7Dias;
-    final dias = dashboard.diasUltimos7Dias;
+    final valores = dashboard.tempoPorDiaNoPeriodo;
+    final dias = dashboard.diasStrNoPeriodo;
 
     // Encontra o valor máximo para dimensionar o eixo Y de forma limpa
     double maxValor = 4.0; // Padrão mínimo
@@ -462,7 +468,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Text(
                         dias[idx],
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        style: const TextStyle(color: Colors.white38, fontSize: 10),
                       ),
                     );
                   }
@@ -496,14 +502,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           borderData: FlBorderData(show: false),
-          barGroups: List.generate(7, (i) {
+          barGroups: List.generate(valores.length, (i) {
             return BarChartGroupData(
               x: i,
               barRods: [
                 BarChartRodData(
                   toY: valores[i],
                   color: Colors.cyanAccent,
-                  width: 14,
+                  width: valores.length > 10 ? 8 : 14,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(4),
                     topRight: Radius.circular(4),
@@ -651,6 +657,347 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           );
         }).toList(),
       ),
+    );
+  }
+
+  // Barra de Filtros (Matéria e Período)
+  Widget _buildFilterBar(BuildContext context, DashboardProvider dashboard) {
+    // Extrai matérias únicas das sessões para alimentar o filtro
+    final materias = dashboard.sessoes
+        .map((s) => s['materia_nome'] as String? ?? 'Sem Matéria')
+        .toSet()
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.filter_alt_rounded, color: Colors.cyanAccent, size: 16),
+              const SizedBox(width: 8),
+              const Text(
+                'Filtros de Análise',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+              ),
+              const Spacer(),
+              if (dashboard.temFiltrosAtivos)
+                TextButton.icon(
+                  onPressed: dashboard.limparFiltros,
+                  icon: const Icon(Icons.clear_all_rounded, size: 14, color: Colors.redAccent),
+                  label: const Text('Limpar', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Dropdown de Matérias
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: dashboard.materiaSelecionada,
+                      hint: const Text("Todas as Matérias", style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      dropdownColor: const Color(0xFF1E293B),
+                      icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.white38),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text("Todas as Matérias"),
+                        ),
+                        ...materias.map((m) => DropdownMenuItem<String>(
+                              value: m,
+                              child: Text(m),
+                            )),
+                      ],
+                      onChanged: dashboard.filtrarPorMateria,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Seletor de Período
+              Expanded(
+                child: InkWell(
+                  onTap: () => _mostrarMenuPeriodo(context, dashboard),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _obterTextoPeriodo(dashboard.periodoSelecionado),
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(Icons.date_range_rounded, color: Colors.white38, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _obterTextoPeriodo(DateTimeRange? range) {
+    if (range == null) return "Últimos 7 Dias";
+    final hoje = DateTime.now();
+    
+    // Verifica se coincide com "Esta Semana"
+    final inicioEstaSemana = DateTime(hoje.year, hoje.month, hoje.day).subtract(Duration(days: hoje.weekday - 1));
+    if (range.start.year == inicioEstaSemana.year &&
+        range.start.month == inicioEstaSemana.month &&
+        range.start.day == inicioEstaSemana.day &&
+        range.end.year == hoje.year &&
+        range.end.month == hoje.month &&
+        range.end.day == hoje.day) {
+      return "Esta Semana";
+    }
+
+    // Verifica se coincide com "Semana Passada"
+    final inicioSemanaPassada = inicioEstaSemana.subtract(const Duration(days: 7));
+    final fimSemanaPassada = inicioEstaSemana.subtract(const Duration(seconds: 1));
+    if (range.start.year == inicioSemanaPassada.year &&
+        range.start.month == inicioSemanaPassada.month &&
+        range.start.day == inicioSemanaPassada.day &&
+        range.end.year == fimSemanaPassada.year &&
+        range.end.month == fimSemanaPassada.month &&
+        range.end.day == fimSemanaPassada.day) {
+      return "Semana Passada";
+    }
+
+    final d1 = "${range.start.day.toString().padLeft(2, '0')}/${range.start.month.toString().padLeft(2, '0')}";
+    final d2 = "${range.end.day.toString().padLeft(2, '0')}/${range.end.month.toString().padLeft(2, '0')}";
+    return "$d1 a $d2";
+  }
+
+  void _mostrarMenuPeriodo(BuildContext context, DashboardProvider dashboard) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final hoje = DateTime.now();
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Selecionar Período',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                ),
+              ),
+              const Divider(color: Colors.white10, height: 1),
+              ListTile(
+                leading: const Icon(Icons.today_rounded, color: Colors.cyanAccent, size: 20),
+                title: const Text('Últimos 7 Dias', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                onTap: () {
+                  dashboard.filtrarPorPeriodo(null);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.view_week_rounded, color: Colors.cyanAccent, size: 20),
+                title: const Text('Esta Semana (Seg a Dom)', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                onTap: () {
+                  final inicio = DateTime(hoje.year, hoje.month, hoje.day).subtract(Duration(days: hoje.weekday - 1));
+                  dashboard.filtrarPorPeriodo(DateTimeRange(start: inicio, end: hoje));
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history_rounded, color: Colors.cyanAccent, size: 20),
+                title: const Text('Semana Passada', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                onTap: () {
+                  final inicioEstaSemana = DateTime(hoje.year, hoje.month, hoje.day).subtract(Duration(days: hoje.weekday - 1));
+                  final inicio = inicioEstaSemana.subtract(const Duration(days: 7));
+                  final fim = inicioEstaSemana.subtract(const Duration(seconds: 1));
+                  dashboard.filtrarPorPeriodo(DateTimeRange(start: inicio, end: fim));
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.date_range_rounded, color: Colors.cyanAccent, size: 20),
+                title: const Text('Período Personalizado...', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final range = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2026),
+                    lastDate: hoje.add(const Duration(days: 1)),
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: const ColorScheme.dark(
+                            primary: Colors.cyanAccent,
+                            onPrimary: Colors.black,
+                            surface: Color(0xFF1E293B),
+                            onSurface: Colors.white,
+                          ),
+                        ),
+                        child: child!,
+                      );
+                    },
+                  );
+                  if (range != null) {
+                    dashboard.filtrarPorPeriodo(range);
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Card de Detalhamento quando uma matéria específica é selecionada
+  Widget _buildMateriaDetalheCard(DashboardProvider dashboard) {
+    final materia = dashboard.materiaSelecionada!;
+    final totalHoras = dashboard.totalHorasFocadas;
+    final sessoesMateria = dashboard.sessoesFiltradas.length;
+    final mediaSessao = dashboard.mediaMinutosPorSessao;
+
+    final metaInfo = dashboard.metasProgresso.firstWhere(
+      (m) => m['materia_nome'] == materia,
+      orElse: () => <String, dynamic>{},
+    );
+    final double metaH = metaInfo['meta_horas'] ?? 0.0;
+    final double pct = metaInfo['porcentagem'] ?? 0.0;
+
+    final cor = _obterCorMateria(materia);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(color: cor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  materia,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildDetalheItem('Tempo Focado', '${totalHoras.toStringAsFixed(1)}h', Colors.cyanAccent),
+              _buildDetalheItem('Sessões', '$sessoesMateria', Colors.greenAccent),
+              _buildDetalheItem('Média / Sessão', '${mediaSessao.toStringAsFixed(0)} min', Colors.purpleAccent),
+            ],
+          ),
+          if (metaH > 0) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Progresso da Meta Semanal',
+              style: TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct > 1.0 ? 1.0 : pct,
+                      minHeight: 8,
+                      backgroundColor: Colors.white10,
+                      valueColor: AlwaysStoppedAnimation<Color>(cor),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${(pct * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(color: cor, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Você completou ${totalHoras.toStringAsFixed(1)}h de uma meta de ${metaH.toStringAsFixed(1)}h.',
+              style: const TextStyle(fontSize: 10, color: Colors.white38),
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Esta matéria não possui meta semanal configurada no Notion.',
+              style: TextStyle(fontSize: 10, color: Colors.white38, fontStyle: FontStyle.italic),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetalheItem(String label, String valor, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.white54)),
+        const SizedBox(height: 4),
+        Text(
+          valor,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
     );
   }
 
