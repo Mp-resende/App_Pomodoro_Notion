@@ -238,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             _buildKPICard(
               width: cardWidth,
               titulo: 'Sessões Feitas',
-              valor: '${dashboard.sessoes.length}',
+              valor: '${dashboard.sessoesFiltradas.length}',
               icon: Icons.check_circle_outline_rounded,
               color: Colors.greenAccent,
             ),
@@ -774,8 +774,19 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   }
 
   String _obterTextoPeriodo(DateTimeRange? range) {
-    if (range == null) return "Últimos 7 Dias";
+    if (range == null) return "Todo o Histórico";
     final hoje = DateTime.now();
+    
+    // Verifica se coincide com "Últimos 7 Dias"
+    final seteDiasAtras = hoje.subtract(const Duration(days: 6));
+    if (range.start.year == seteDiasAtras.year &&
+        range.start.month == seteDiasAtras.month &&
+        range.start.day == seteDiasAtras.day &&
+        range.end.year == hoje.year &&
+        range.end.month == hoje.month &&
+        range.end.day == hoje.day) {
+      return "Últimos 7 Dias";
+    }
     
     // Verifica se coincide com "Esta Semana"
     final inicioEstaSemana = DateTime(hoje.year, hoje.month, hoje.day).subtract(Duration(days: hoje.weekday - 1));
@@ -827,10 +838,19 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ),
               const Divider(color: Colors.white10, height: 1),
               ListTile(
+                leading: const Icon(Icons.all_inclusive_rounded, color: Colors.cyanAccent, size: 20),
+                title: const Text('Todo o Histórico', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                onTap: () {
+                  dashboard.filtrarPorPeriodo(null);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.today_rounded, color: Colors.cyanAccent, size: 20),
                 title: const Text('Últimos 7 Dias', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 onTap: () {
-                  dashboard.filtrarPorPeriodo(null);
+                  final inicio = hoje.subtract(const Duration(days: 6));
+                  dashboard.filtrarPorPeriodo(DateTimeRange(start: inicio, end: hoje));
                   Navigator.pop(context);
                 },
               ),
@@ -981,7 +1001,78 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               'Esta matéria não possui meta semanal configurada no Notion.',
               style: TextStyle(fontSize: 10, color: Colors.white38, fontStyle: FontStyle.italic),
             ),
-          ]
+          ],
+          
+          // Tópicos Estudados (Registro de Sessões)
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 16),
+          const Text(
+            'Tópicos Estudados (Registro de Sessões)',
+            style: TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          if (dashboard.topicosDaMateriaSelecionada.isEmpty)
+            const Text(
+              'Nenhum tópico registrado para esta matéria.',
+              style: TextStyle(fontSize: 11, color: Colors.white38, fontStyle: FontStyle.italic),
+            )
+          else
+            ...dashboard.topicosDaMateriaSelecionada.map((topico) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.02),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.04)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            topico['nome'],
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          if (topico['tipo'] != 'Não Definido')
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                topico['tipo'],
+                                style: const TextStyle(fontSize: 9, color: Colors.purpleAccent, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${(topico['total_horas'] as double).toStringAsFixed(1)}h',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: cor),
+                        ),
+                        Text(
+                          '${topico['sessoes_count']} ${topico['sessoes_count'] == 1 ? 'sessão' : 'sessões'}',
+                          style: const TextStyle(fontSize: 10, color: Colors.white38),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
         ],
       ),
     );

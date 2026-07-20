@@ -9,10 +9,15 @@ class DashboardProvider with ChangeNotifier {
   String? erroMessage;
 
   // Filtros ativos
-  String? _materiaSelecionada;
   DateTimeRange? _periodoSelecionado;
-
+  String? _materiaSelecionada;
+  
   DashboardProvider({required this.timerProvider}) {
+    final hoje = DateTime.now();
+    _periodoSelecionado = DateTimeRange(
+      start: hoje.subtract(const Duration(days: 6)),
+      end: hoje,
+    );
     carregarCache();
     timerProvider.onSessionRecorded = () {
       atualizarDadosNotion();
@@ -217,7 +222,7 @@ class DashboardProvider with ChangeNotifier {
   List<DateTime> get diasNoPeriodo {
     final hoje = DateTime.now();
     final range = _periodoSelecionado ?? DateTimeRange(
-      start: hoje.subtract(const Duration(days: 6)),
+      start: hoje.subtract(const Duration(days: 13)),
       end: hoje,
     );
 
@@ -288,6 +293,9 @@ class DashboardProvider with ChangeNotifier {
 
     for (final m in materias) {
       final nome = m['nome'] as String? ?? 'Sem Nome';
+      if (_materiaSelecionada != null && nome != _materiaSelecionada) {
+        continue;
+      }
       final metaSemanal = (m['meta_semanal'] as num?)?.toDouble() ?? 0.0;
 
       double minutosFocados = 0;
@@ -296,8 +304,8 @@ class DashboardProvider with ChangeNotifier {
           final inicioStr = s['inicio'] as String?;
           if (inicioStr != null) {
             final inicio = DateTime.tryParse(inicioStr)?.toLocal();
-            // Conta as horas da matéria se for após o início da semana selecionada e antes do fim dela
-            if (inicio != null && inicio.isAfter(inicioSemana)) {
+            // Conta as horas da matéria se for no período da semana selecionada (inclusivo)
+            if (inicio != null && !inicio.isBefore(inicioSemana)) {
               if (_periodoSelecionado != null) {
                 final fimFiltro = DateTime(_periodoSelecionado!.end.year, _periodoSelecionado!.end.month, _periodoSelecionado!.end.day, 23, 59, 59);
                 if (inicio.isAfter(fimFiltro)) continue;
@@ -319,6 +327,38 @@ class DashboardProvider with ChangeNotifier {
         'porcentagem': metaSemanal > 0 ? (realizadoHoras / metaSemanal) : 0.0,
       });
     }
+    return list;
+  }
+
+  // Retorna os tópicos (Registro de Sessões) estudados da matéria filtrada agrupados
+  List<Map<String, dynamic>> get topicosDaMateriaSelecionada {
+    if (_materiaSelecionada == null) return [];
+    
+    final Map<String, Map<String, dynamic>> map = {};
+    for (final s in sessoesFiltradas) {
+      final topico = s['topico_nome'] as String? ?? 'Sem Tópico';
+      final tipo = s['tipo_estudo'] as String? ?? 'Não Definido';
+      final inicio = DateTime.tryParse(s['inicio'] ?? '');
+      final fim = DateTime.tryParse(s['fim'] ?? '');
+      
+      if (inicio != null && fim != null) {
+        final horas = fim.difference(inicio).inMinutes / 60.0;
+        if (!map.containsKey(topico)) {
+          map[topico] = {
+            'nome': topico,
+            'tipo': tipo,
+            'total_horas': 0.0,
+            'sessoes_count': 0,
+          };
+        }
+        map[topico]!['total_horas'] = (map[topico]!['total_horas'] as double) + horas;
+        map[topico]!['sessoes_count'] = (map[topico]!['sessoes_count'] as int) + 1;
+      }
+    }
+    
+    final list = map.values.toList();
+    // Ordena pelo tópico mais estudado
+    list.sort((a, b) => (b['total_horas'] as double).compareTo(a['total_horas'] as double));
     return list;
   }
 }
