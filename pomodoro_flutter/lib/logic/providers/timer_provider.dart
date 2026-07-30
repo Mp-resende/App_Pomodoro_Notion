@@ -130,6 +130,10 @@ class TimerProvider with ChangeNotifier {
         iniciarDescanso(precisaLongBreak());
       } else if (actionId == 'action_pular_descanso') {
         pularDescanso();
+      } else if (actionId == 'action_pausar' || actionId == 'action_retomar') {
+        pausarRetomar();
+      } else if (actionId == 'action_pular') {
+        resetar();
       }
     });
 
@@ -154,9 +158,6 @@ class TimerProvider with ChangeNotifier {
 
     // 7. Checa se existem atualizações disponíveis no GitHub
     _checarAtualizacaoSilenciosa();
-
-    // 8. Gera relatório semanal silencioso se houver nova semana
-    _checarRelatorioSemanalSilencioso();
   }
 
   String _ultimaChecagemUpdateStr = "";
@@ -271,6 +272,7 @@ class TimerProvider with ChangeNotifier {
           labelStatus = "Notion conectado";
           textStatusColor = "#4CAF50";
           _sincronizarOfflineEmBackground();
+          _checarRelatorioSemanalSilencioso();
         } else {
           labelStatus = "Notion offline - Modo local ativo";
           textStatusColor = "#FF9800";
@@ -447,11 +449,11 @@ class TimerProvider with ChangeNotifier {
       labelStatus = modoDescanso ? "Descansando..." : "Focado...";
       textStatusColor = modoDescanso ? "#FF9800" : "#FFD700";
     } else {
-      // Pausando: cancela a notificação agendada e o cronômetro persistente
+      // Pausando: cancela a notificação agendada e exibe estado pausado
       pausado = true;
       if (Platform.isAndroid) {
         notificationService.cancelarNotificacoes();
-        notificationService.removerNotificacaoCronometro();
+        notificationService.exibirNotificacaoPausada(tarefaAtual, tempoRestante);
       }
       labelStatus = "Pausado";
       textStatusColor = "#FFA500";

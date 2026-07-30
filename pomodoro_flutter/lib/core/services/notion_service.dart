@@ -243,42 +243,63 @@ class NotionService {
     return {};
   }
 
-  // Busca os registros disponíveis de uma database relacionada
+  // Busca os registros disponíveis de uma database relacionada com paginação
   Future<List<Map<String, String>>> consultarOpcoesRelacao(String relatedDbId, {int retries = 3}) async {
     if (!connected) return [];
     final url = Uri.parse('https://api.notion.com/v1/databases/$relatedDbId/query');
-    final body = jsonEncode({}); // Query vazia para listar todas as linhas
+    final List<Map<String, String>> opcoes = [];
+    String? cursor;
 
     for (int tentativa = 0; tentativa < retries; tentativa++) {
       try {
-        final response = await http.post(url, headers: _headers, body: body).timeout(const Duration(seconds: 8));
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final results = data['results'] as List<dynamic>? ?? [];
-          final List<Map<String, String>> opcoes = [];
+        opcoes.clear();
+        cursor = null;
+        bool sucesso = true;
 
-          for (final page in results) {
-            final pageProperties = page['properties'] as Map<String, dynamic>? ?? {};
+        do {
+          final Map<String, dynamic> bodyMap = {"page_size": 100};
+          if (cursor != null) bodyMap["start_cursor"] = cursor;
 
-            // Encontra a coluna de título (Title property)
-            String titleContent = '';
-            for (final prop in pageProperties.values) {
-              final propMap = prop as Map<String, dynamic>;
-              if (propMap['type'] == 'title') {
-                final titleArray = propMap['title'] as List<dynamic>? ?? [];
-                titleContent = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('');
-                break;
+          final response = await http
+              .post(url, headers: _headers, body: jsonEncode(bodyMap))
+              .timeout(const Duration(seconds: 10));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            final results = data['results'] as List<dynamic>? ?? [];
+
+            for (final page in results) {
+              final pageProperties = page['properties'] as Map<String, dynamic>? ?? {};
+
+              // Encontra a coluna de título (Title property)
+              String titleContent = '';
+              for (final prop in pageProperties.values) {
+                final propMap = prop as Map<String, dynamic>;
+                if (propMap['type'] == 'title') {
+                  final titleArray = propMap['title'] as List<dynamic>? ?? [];
+                  titleContent = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('');
+                  break;
+                }
               }
-            }
 
-            opcoes.add({
-              'id': page['id'] as String,
-              'title': titleContent.trim()
-            });
+              opcoes.add({
+                'id': page['id'] as String,
+                'title': titleContent.trim()
+              });
+            }
+            cursor = (data['has_more'] as bool? ?? false) ? data['next_cursor'] as String? : null;
+          } else {
+            sucesso = false;
+            break;
           }
+        } while (cursor != null);
+
+        if (sucesso) {
           return opcoes;
         }
-      } catch (_) {}
+      } catch (_) {
+        // Ignora erro e tenta novamente se possível
+      }
       if (tentativa < retries - 1) {
         await Future.delayed(const Duration(seconds: 2));
       }
@@ -623,7 +644,8 @@ class NotionService {
         if (ini != null && fi != null && fi.isAfter(ini)) {
           mins = fi.difference(ini).inMinutes;
           totalMinutos += mins;
-          diasAtivos.add(inicioStr.substring(0, 10));
+          final local = ini.toLocal();
+          diasAtivos.add('${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}');
         }
       }
 

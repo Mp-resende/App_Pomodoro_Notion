@@ -192,43 +192,72 @@ class NotificationService {
     }
   }
 
-  // Exibe uma notificação contínua na barra com o cronômetro nativo do Android
   Future<void> exibirNotificacaoCronometro(String titulo, String mensagem, DateTime tempoFim) async {
     await inicializar();
-
     if (!Platform.isAndroid) return;
 
-    final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'pomodoro_active_channel_v3', // Atualizado para v3 para aplicar regras de lockscreen e importância
+    final androidDetails = AndroidNotificationDetails(
+      'pomodoro_active_channel_v3',
       'Cronometro Ativo',
       channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status e tela de bloqueio',
-      importance: Importance.defaultImportance, // Exigido pelo Android para aparecer na tela de bloqueio (Lock Screen)
+      importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
       playSound: false,
-      enableVibration: false, // Início silencioso e confortável
-      ongoing: true, // Notificação persistente (não pode ser excluída deslizando)
+      enableVibration: false,
+      ongoing: true,
       showWhen: true,
       usesChronometer: true,
       chronometerCountDown: true,
       when: tempoFim.millisecondsSinceEpoch,
-      autoCancel: false, // O clique reabre o app mas não cancela a notificação (nós controlamos isso)
-      onlyAlertOnce: true, // Garante que atualizações na notificação não toquem som de novo
-      visibility: NotificationVisibility.public, // Torna o conteúdo e cronômetro visíveis na Lock Screen
+      autoCancel: false,
+      onlyAlertOnce: true,
+      visibility: NotificationVisibility.public,
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction('action_pausar', '⏸ Pausar', showsUserInterface: false, cancelNotification: false),
+        AndroidNotificationAction('action_pular', '⏭ Pular', showsUserInterface: false, cancelNotification: true),
+      ],
     );
-
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-    );
-
     try {
-      await _notificationsPlugin.show(
-        1, // ID fixo para a notificação ativa (assim ela é sobrescrita)
-        titulo,
-        mensagem,
-        platformChannelSpecifics,
-      );
+      await _notificationsPlugin.show(1, titulo, mensagem, NotificationDetails(android: androidDetails));
     } catch (e) {
       stderr.writeln('Erro ao exibir cronometro na notificacao: $e');
+    }
+  }
+
+  // Exibe notificação persistente no estado pausado com botão de retomar
+  Future<void> exibirNotificacaoPausada(String tarefa, int segundosRestantes) async {
+    await inicializar();
+    if (!Platform.isAndroid) return;
+
+    final m = (segundosRestantes ~/ 60).toString().padLeft(2, '0');
+    final s = (segundosRestantes % 60).toString().padLeft(2, '0');
+
+    final androidDetails = AndroidNotificationDetails(
+      'pomodoro_active_channel_v3',
+      'Cronometro Ativo',
+      channelDescription: 'Exibe o tempo restante do Pomodoro na barra de status e tela de bloqueio',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      playSound: false,
+      enableVibration: false,
+      ongoing: true,
+      autoCancel: false,
+      onlyAlertOnce: true,
+      visibility: NotificationVisibility.public,
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction('action_retomar', '▶ Retomar', showsUserInterface: false, cancelNotification: false),
+        AndroidNotificationAction('action_pular', '⏭ Pular', showsUserInterface: false, cancelNotification: true),
+      ],
+    );
+    try {
+      await _notificationsPlugin.show(
+        1,
+        '⏸ Pausado — $m:$s restante',
+        tarefa.isNotEmpty ? tarefa : 'Sessão em pausa',
+        NotificationDetails(android: androidDetails),
+      );
+    } catch (e) {
+      stderr.writeln('Erro ao exibir notificação de pausa: $e');
     }
   }
 

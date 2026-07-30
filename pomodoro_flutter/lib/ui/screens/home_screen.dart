@@ -12,6 +12,7 @@ import '../widgets/status_indicator.dart';
 import 'focus_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
+import '../popups/sync_popup.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -633,6 +634,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              if (Platform.isAndroid) ...[
+                TextButton.icon(
+                  onPressed: () => SyncPopup.mostrar(context),
+                  icon: Icon(Icons.wifi_rounded, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                  label: Text(
+                    'Sync PC',
+                    style: TextStyle(color: Colors.cyanAccent.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(width: 6),
