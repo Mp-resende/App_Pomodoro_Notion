@@ -36,7 +36,7 @@ Write-Host "Atualizando arquivo version.json..." -ForegroundColor Yellow
 $jsonObj = @{
     version = $versao
     android_url = "https://raw.githubusercontent.com/Mp-resende/App_Pomodoro_Notion/main/releases/app-arm64-v8a-release.apk"
-    windows_url = "https://raw.githubusercontent.com/Mp-resende/App_Pomodoro_Notion/main/releases/windows/pomodoro_notion.exe"
+    windows_url = "https://raw.githubusercontent.com/Mp-resende/App_Pomodoro_Notion/main/releases/pomodoro_notion_windows.zip"
 }
 $jsonContent = ConvertTo-Json $jsonObj -Depth 4
 [System.IO.File]::WriteAllText((New-Item -Path $versionJsonPath -Force).FullName, $jsonContent, [System.Text.Encoding]::UTF8)
@@ -83,6 +83,10 @@ New-Item -ItemType Directory -Path "releases\windows" -Force | Out-Null
 
 Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "releases\windows\" -Recurse -Force
 Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*.apk" -Destination "releases\" -Force
+
+Write-Host "Criando arquivo ZIP para distribuicao do Windows..." -ForegroundColor Yellow
+Remove-Item -Path "releases\pomodoro_notion_windows.zip" -Force -ErrorAction SilentlyContinue
+Compress-Archive -Path "releases\windows\*" -DestinationPath "releases\pomodoro_notion_windows.zip" -Force
 
 Write-Host "Sincronizando pasta de build local para testes locais..." -ForegroundColor Yellow
 # Garante as pastas locais
