@@ -11,6 +11,15 @@ class DashboardProvider with ChangeNotifier {
   // Filtros ativos
   DateTimeRange? _periodoSelecionado;
   String? _materiaSelecionada;
+
+  // Cache da lista filtrada para evitar recomputação em cada getter
+  List<dynamic>? _sessoesFiltradaCache;
+  String? _sessoesCacheKey;
+
+  String get _filtroCacheKey =>
+      '${_materiaSelecionada}|${_periodoSelecionado?.start?.millisecondsSinceEpoch}|${_periodoSelecionado?.end?.millisecondsSinceEpoch}|${sessoes.length}';
+
+  void _invalidarCache() => _sessoesFiltradaCache = null;
   
   DashboardProvider({required this.timerProvider}) {
     final hoje = DateTime.now();
@@ -30,17 +39,20 @@ class DashboardProvider with ChangeNotifier {
 
   void filtrarPorMateria(String? materia) {
     _materiaSelecionada = materia;
+    _invalidarCache();
     notifyListeners();
   }
 
   void filtrarPorPeriodo(DateTimeRange? periodo) {
     _periodoSelecionado = periodo;
+    _invalidarCache();
     notifyListeners();
   }
 
   void limparFiltros() {
     _materiaSelecionada = null;
     _periodoSelecionado = null;
+    _invalidarCache();
     notifyListeners();
   }
 
@@ -84,6 +96,7 @@ class DashboardProvider with ChangeNotifier {
       final dados = await service.obterDadosEstatisticas();
       if (dados.isNotEmpty) {
         dadosDashboard = dados;
+        _invalidarCache();
         await timerProvider.storageService.writeJson('dashboard_cache.json', dados);
         erroMessage = null;
       } else {
@@ -104,22 +117,29 @@ class DashboardProvider with ChangeNotifier {
 
   bool get temDados => sessoes.isNotEmpty;
 
-  // Getter principal filtrado
+  // Getter principal filtrado (com cache)
   List<dynamic> get sessoesFiltradas {
+    final key = _filtroCacheKey;
+    if (key == _sessoesCacheKey && _sessoesFiltradaCache != null) {
+      return _sessoesFiltradaCache!;
+    }
+    _sessoesCacheKey = key;
+    _sessoesFiltradaCache = _computeSessoesFiltradas();
+    return _sessoesFiltradaCache!;
+  }
+
+  List<dynamic> _computeSessoesFiltradas() {
     return sessoes.where((s) {
-      // 1. Filtro por matéria
       if (_materiaSelecionada != null && s['materia_nome'] != _materiaSelecionada) {
         return false;
       }
-      // 2. Filtro por período de datas (inclusivo)
       if (_periodoSelecionado != null) {
         final inicioStr = s['inicio'] as String?;
         if (inicioStr == null) return false;
-        
+
         final inicio = DateTime.tryParse(inicioStr)?.toLocal();
         if (inicio == null) return false;
 
-        // Compara ignorando horas/minutos para incluir todo o dia de início e fim
         final dataInicioFiltro = DateTime(_periodoSelecionado!.start.year, _periodoSelecionado!.start.month, _periodoSelecionado!.start.day);
         final dataFimFiltro = DateTime(_periodoSelecionado!.end.year, _periodoSelecionado!.end.month, _periodoSelecionado!.end.day, 23, 59, 59);
 

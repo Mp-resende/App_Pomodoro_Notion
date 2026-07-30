@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../logic/providers/relation_provider.dart';
@@ -228,6 +229,7 @@ class _RelationSearchModalState extends State<_RelationSearchModal> {
   final TextEditingController _searchController = TextEditingController();
   List<String> _listaFiltrada = [];
   bool _criando = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -235,15 +237,26 @@ class _RelationSearchModalState extends State<_RelationSearchModal> {
     _listaFiltrada = List.from(widget.opcoesIniciais);
   }
 
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _filtrar(String query) {
-    setState(() {
-      if (query.trim().isEmpty) {
-        _listaFiltrada = List.from(widget.opcoesIniciais);
-      } else {
-        _listaFiltrada = widget.opcoesIniciais
-            .where((titulo) => titulo.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-      }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        if (query.trim().isEmpty) {
+          _listaFiltrada = List.from(widget.opcoesIniciais);
+        } else {
+          _listaFiltrada = widget.opcoesIniciais
+              .where((titulo) => titulo.toLowerCase().contains(query.toLowerCase()))
+              .toList();
+        }
+      });
     });
   }
 

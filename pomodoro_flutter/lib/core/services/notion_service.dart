@@ -8,12 +8,16 @@ class NotionService {
   final String apiKey;
   final String databaseId;
   final StorageService storageService;
+  final String? materiasDatabaseId;
+  final String? estudosDiariosDatabaseId;
   bool connected = false;
 
   NotionService({
     required this.apiKey,
     required this.databaseId,
     required this.storageService,
+    this.materiasDatabaseId,
+    this.estudosDiariosDatabaseId,
   });
 
   // Cabeçalhos HTTP obrigatórios pela API do Notion
@@ -339,9 +343,15 @@ class NotionService {
   Future<Map<String, dynamic>> obterDadosEstatisticas() async {
     if (!connected) return {};
 
+    final materiaDbId = materiasDatabaseId;
+    final estudosDiariosDbId = estudosDiariosDatabaseId;
+
+    if (materiaDbId == null || materiaDbId.isEmpty ||
+        estudosDiariosDbId == null || estudosDiariosDbId.isEmpty) {
+      return {};
+    }
+
     try {
-      final materiaDbId = '2aa75b83-d245-80a5-a194-ede969ff4e45';
-      final estudosDiariosDbId = '2aa75b83-d245-80d9-b29e-c362f3ebbd09';
       final intervalosDbId = databaseId;
 
       // 1. Busca os dados de cada tabela em paralelo
@@ -502,40 +512,226 @@ class NotionService {
     }
   }
 
-  // Helper para consultar bases de dados de forma genérica com limite
+  // Consulta genérica com paginação automática (cursor-based)
   Future<List<dynamic>> _queryDatabase(String dbId) async {
     final url = Uri.parse('https://api.notion.com/v1/databases/$dbId/query');
-    Map<String, dynamic> body = {};
+    final List<dynamic> allResults = [];
+    String? cursor;
 
-    // Se for a tabela de Intervalos, ordena pelas sessões mais recentes primeiro
-    if (dbId == databaseId) {
-      body = {
-        "sorts": [
-          {
-            "property": "Início",
-            "direction": "descending"
-          }
-        ],
-        "page_size": 100
+    do {
+      final Map<String, dynamic> body = {"page_size": 100};
+      if (dbId == databaseId) {
+        body["sorts"] = [
+          {"property": "Início", "direction": "descending"}
+        ];
+      }
+      if (cursor != null) body["start_cursor"] = cursor;
+
+      final response = await http.post(
+        url,
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        allResults.addAll(data['results'] as List<dynamic>? ?? []);
+        cursor = (data['has_more'] as bool? ?? false)
+            ? data['next_cursor'] as String?
+            : null;
+      } else {
+        throw Exception('Falha ao consultar database $dbId: ${response.statusCode}');
+      }
+    } while (cursor != null);
+
+    return allResults;
+  }
+
+  // Consulta sessões da database principal dentro de um intervalo de datas com paginação
+  Future<List<dynamic>> _querySessoesPeriodo(DateTime inicio, DateTime fim) async {
+    final url = Uri.parse('https://api.notion.com/v1/databases/$databaseId/query');
+    final List<dynamic> allResults = [];
+    String? cursor;
+
+    do {
+      final Map<String, dynamic> body = {
+        "filter": {
+          "and": [
+            {"property": "Início", "date": {"on_or_after": inicio.toUtc().toIso8601String()}},
+            {"property": "Início", "date": {"on_or_before": fim.toUtc().toIso8601String()}},
+          ]
+        },
+        "sorts": [{"property": "Início", "direction": "ascending"}],
+        "page_size": 100,
       };
-    } else {
-      // Para as tabelas menores, busca até 100 itens sem ordenação específica
-      body = {
-        "page_size": 100
-      };
+      if (cursor != null) body["start_cursor"] = cursor;
+
+      try {
+        final response = await http
+            .post(url, headers: _headers, body: jsonEncode(body))
+            .timeout(const Duration(seconds: 15));
+        if (response.statusCode != 200) break;
+        final data = jsonDecode(response.body);
+        allResults.addAll(data['results'] as List<dynamic>? ?? []);
+        cursor = (data['has_more'] as bool? ?? false) ? data['next_cursor'] as String? : null;
+      } catch (_) {
+        break;
+      }
+    } while (cursor != null);
+
+    return allResults;
+  }
+
+  // Cria uma sub-página de relatório semanal no Notion sob a paginaPaiId fornecida
+  Future<bool> criarRelatorioSemanal({
+    required String paginaPaiId,
+    required DateTime inicioSemana,
+    required DateTime fimSemana,
+  }) async {
+    if (!connected || paginaPaiId.trim().isEmpty) return false;
+
+    final sessoes = await _querySessoesPeriodo(inicioSemana, fimSemana);
+    if (sessoes.isEmpty) return false;
+
+    int totalMinutos = 0;
+    final Map<String, int> minPorCategoria = {};
+    final Set<String> tarefas = {};
+    final Set<String> diasAtivos = {};
+
+    for (final s in sessoes) {
+      final props = s['properties'] as Map<String, dynamic>? ?? {};
+
+      String titulo = '';
+      for (final prop in props.values) {
+        final p = prop as Map<String, dynamic>;
+        if (p['type'] == 'title') {
+          titulo = (p['title'] as List<dynamic>? ?? [])
+              .map((e) => e['plain_text']?.toString() ?? '')
+              .join('')
+              .trim();
+          break;
+        }
+      }
+
+      final inicioStr = (props['Início'] as Map<String, dynamic>?)?['date']?['start'] as String?;
+      final fimStr = (props['Fim'] as Map<String, dynamic>?)?['date']?['start'] as String?;
+
+      int mins = 0;
+      if (inicioStr != null && fimStr != null) {
+        final ini = DateTime.tryParse(inicioStr);
+        final fi = DateTime.tryParse(fimStr);
+        if (ini != null && fi != null && fi.isAfter(ini)) {
+          mins = fi.difference(ini).inMinutes;
+          totalMinutos += mins;
+          diasAtivos.add(inicioStr.substring(0, 10));
+        }
+      }
+
+      final categoria =
+          (props['Tecnologia'] as Map<String, dynamic>?)?['select']?['name'] as String? ?? 'Outro';
+      minPorCategoria[categoria] = (minPorCategoria[categoria] ?? 0) + mins;
+
+      if (titulo.isNotEmpty && !titulo.startsWith('[Encerrado]') && !titulo.startsWith('📊')) {
+        tarefas.add(titulo);
+      }
     }
 
-    final response = await http.post(
-      url,
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 10));
+    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    final iniLabel = '${inicioSemana.day} ${meses[inicioSemana.month - 1]}';
+    final fimLabel = '${fimSemana.day} ${meses[fimSemana.month - 1]} ${fimSemana.year}';
+    final tituloRelatorio = '📊 Relatório Semanal — $iniLabel a $fimLabel';
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['results'] as List<dynamic>? ?? [];
-    } else {
-      throw Exception('Falha ao consultar database $dbId: ${response.statusCode}');
+    final h = totalMinutos ~/ 60;
+    final m = totalMinutos % 60;
+    final tempoStr = h > 0 ? '${h}h ${m}min' : '${m}min';
+
+    final cats = minPorCategoria.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final now = DateTime.now();
+    final geradoEm =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final catBlocks = cats.take(20).map((e) {
+      final p = totalMinutos > 0 ? ((e.value / totalMinutos) * 100).round() : 0;
+      final ch = e.value ~/ 60;
+      final cm = e.value % 60;
+      final ct = ch > 0 ? '${ch}h ${cm}min' : '${cm}min';
+      return _bulletBlock('${e.key} — $ct ($p%)');
+    }).toList();
+
+    final taskBlocks = tarefas.isEmpty
+        ? [_bulletBlock('Nenhuma tarefa registrada.')]
+        : tarefas.take(25).map(_bulletBlock).toList();
+
+    final blocks = <Map<String, dynamic>>[
+      _calloutBlock('Gerado automaticamente pelo Pomodoro Dev Tracker em $geradoEm'),
+      _dividerBlock(),
+      _heading2Block('📈 Resumo'),
+      _bulletBlock('🍅 Sessões registradas: ${sessoes.length}'),
+      _bulletBlock('⏱ Tempo total focado: $tempoStr'),
+      _bulletBlock('📅 Dias com foco: ${diasAtivos.length} de 7'),
+      _dividerBlock(),
+      _heading2Block('📂 Por Categoria'),
+      ...catBlocks,
+      _dividerBlock(),
+      _heading2Block('📝 Tarefas Trabalhadas'),
+      ...taskBlocks,
+    ];
+
+    final url = Uri.parse('https://api.notion.com/v1/pages');
+    final reqBody = jsonEncode({
+      "parent": {"page_id": paginaPaiId.trim()},
+      "properties": {
+        "title": {
+          "title": [
+            {"text": {"content": tituloRelatorio}}
+          ]
+        }
+      },
+      "children": blocks,
+    });
+
+    try {
+      final response = await http
+          .post(url, headers: _headers, body: reqBody)
+          .timeout(const Duration(seconds: 15));
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (_) {
+      return false;
     }
   }
+
+  Map<String, dynamic> _calloutBlock(String text) => {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+          "icon": {"type": "emoji", "emoji": "🤖"},
+          "rich_text": [
+            {"type": "text", "text": {"content": text}}
+          ],
+          "color": "gray_background",
+        },
+      };
+
+  Map<String, dynamic> _dividerBlock() => {"object": "block", "type": "divider", "divider": {}};
+
+  Map<String, dynamic> _heading2Block(String text) => {
+        "object": "block",
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [
+            {"type": "text", "text": {"content": text}}
+          ],
+        },
+      };
+
+  Map<String, dynamic> _bulletBlock(String text) => {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {
+          "rich_text": [
+            {"type": "text", "text": {"content": text}}
+          ],
+        },
+      };
 }

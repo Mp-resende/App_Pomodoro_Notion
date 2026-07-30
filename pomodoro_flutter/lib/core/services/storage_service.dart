@@ -5,31 +5,29 @@ import 'package:path_provider/path_provider.dart';
 class StorageService {
   // Nomes de arquivos idênticos aos definidos em Python
   static const String configFile = "config.json";
+  Directory? _cachedBaseDir;
   static const String contadorFile = "pomodoros_contador.json";
   static const String offlineFile = "sessoes_offline.json";
   static const String logFile = "pomodoro.log";
   static const String historicoFile = "historico_tarefas.json";
 
-  // Retorna o diretório base adequado para cada plataforma
+  // Retorna o diretório base adequado para cada plataforma (resultado cacheado após primeira chamada)
   Future<Directory> getBaseDir() async {
+    if (_cachedBaseDir != null) return _cachedBaseDir!;
     if (Platform.isWindows) {
       try {
-        // No Windows, usa o diretório onde o executável (.exe) está de fato localizado
-        // (parent de resolvedExecutable) em vez de Directory.current. Isso evita que o
-        // caminho mude dependendo de como o app foi iniciado (ex: via atalho ou prompt).
         final dir = File(Platform.resolvedExecutable).parent;
         final testFile = File('${dir.path}/.write_test');
         await testFile.writeAsString('test');
         await testFile.delete();
-        return dir;
+        _cachedBaseDir = dir;
       } catch (_) {
-        // Caso não tenha permissão de escrita, recorre ao diretório seguro do AppData
-        return await getApplicationSupportDirectory();
+        _cachedBaseDir = await getApplicationSupportDirectory();
       }
     } else {
-      // No Android, utiliza o diretório interno seguro da aplicação
-      return await getApplicationSupportDirectory();
+      _cachedBaseDir = await getApplicationSupportDirectory();
     }
+    return _cachedBaseDir!;
   }
 
   // Retorna o arquivo com o caminho correto centralizado
@@ -63,10 +61,13 @@ class StorageService {
     return null;
   }
 
-  // Escreve mensagens de log (equivalente ao logger do Python)
+  // Escreve mensagens de log com rotação automática ao atingir 1 MB
   Future<void> logMessage(String message) async {
     try {
       final file = await getFile(logFile);
+      if (await file.exists() && await file.length() > 1 * 1024 * 1024) {
+        await file.writeAsString('', encoding: utf8);
+      }
       final timestamp = DateTime.now().toIso8601String();
       await file.writeAsString(
         '$timestamp - INFO - $message\n',

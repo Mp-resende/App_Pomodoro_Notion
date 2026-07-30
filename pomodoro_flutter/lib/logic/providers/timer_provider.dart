@@ -52,10 +52,20 @@ class TimerProvider with ChangeNotifier {
 
   // Loop do Timer
   Timer? _ticker;
+  StreamSubscription<String?>? _notifSubscription;
 
   // Credenciais do Notion (podem vir do .env ou do config.json)
   String notionApiKey = "";
   String notionDatabaseId = "";
+  String _notionMateriasDatabaseId = "";
+  String _notionEstudosDiariosDatabaseId = "";
+  String _notionReportsPageId = "";
+  String _ultimoRelatorioSemanalStr = "";
+  bool _gerandoRelatorio = false;
+
+  String get notionReportsPageId => _notionReportsPageId;
+  bool get gerandoRelatorio => _gerandoRelatorio;
+  String get ultimoRelatorioStr => _ultimoRelatorioSemanalStr;
 
   // Callbacks para eventos da UI
   VoidCallback? onSessionFinished;
@@ -78,6 +88,10 @@ class TimerProvider with ChangeNotifier {
       config = PomodoroConfig.fromJson(configData);
       notionApiKey = configData['notion_api_key']?.toString() ?? "";
       notionDatabaseId = configData['notion_database_id']?.toString() ?? "";
+      _notionMateriasDatabaseId = configData['notion_materias_db_id']?.toString() ?? "";
+      _notionEstudosDiariosDatabaseId = configData['notion_estudos_diarios_db_id']?.toString() ?? "";
+      _notionReportsPageId = configData['notion_reports_page_id']?.toString() ?? "";
+      _ultimoRelatorioSemanalStr = configData['ultimo_relatorio_semanal']?.toString() ?? "";
       _ultimaChecagemUpdateStr = configData['ultima_checagem_update']?.toString() ?? "";
     } else {
       config = PomodoroConfig();
@@ -111,7 +125,7 @@ class TimerProvider with ChangeNotifier {
     notifyListeners();
 
     // Escuta eventos de botões interativos das notificações (Android)
-    NotificationService.onActionSelected.stream.listen((actionId) {
+    _notifSubscription = NotificationService.onActionSelected.stream.listen((actionId) {
       if (actionId == 'action_comecar_descanso') {
         iniciarDescanso(precisaLongBreak());
       } else if (actionId == 'action_pular_descanso') {
@@ -140,6 +154,9 @@ class TimerProvider with ChangeNotifier {
 
     // 7. Checa se existem atualizações disponíveis no GitHub
     _checarAtualizacaoSilenciosa();
+
+    // 8. Gera relatório semanal silencioso se houver nova semana
+    _checarRelatorioSemanalSilencioso();
   }
 
   String _ultimaChecagemUpdateStr = "";
@@ -171,13 +188,21 @@ class TimerProvider with ChangeNotifier {
     await _salvarDataChecagem();
   }
 
+  Map<String, dynamic> _configParaJson() {
+    final map = config.toJson();
+    map['notion_api_key'] = notionApiKey;
+    map['notion_database_id'] = notionDatabaseId;
+    map['notion_materias_db_id'] = _notionMateriasDatabaseId;
+    map['notion_estudos_diarios_db_id'] = _notionEstudosDiariosDatabaseId;
+    map['notion_reports_page_id'] = _notionReportsPageId;
+    map['ultima_checagem_update'] = _ultimaChecagemUpdateStr;
+    map['ultimo_relatorio_semanal'] = _ultimoRelatorioSemanalStr;
+    return map;
+  }
+
   Future<void> _salvarDataChecagem() async {
     _ultimaChecagemUpdateStr = DateTime.now().toIso8601String();
-    final configMap = config.toJson();
-    configMap['notion_api_key'] = notionApiKey;
-    configMap['notion_database_id'] = notionDatabaseId;
-    configMap['ultima_checagem_update'] = _ultimaChecagemUpdateStr;
-    await storageService.writeJson(StorageService.configFile, configMap);
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
   }
 
   // Executa a busca forçada manual de atualizações (usado pelo botão nas configurações)
@@ -237,6 +262,8 @@ class TimerProvider with ChangeNotifier {
         apiKey: notionApiKey,
         databaseId: notionDatabaseId,
         storageService: storageService,
+        materiasDatabaseId: _notionMateriasDatabaseId.isNotEmpty ? _notionMateriasDatabaseId : null,
+        estudosDiariosDatabaseId: _notionEstudosDiariosDatabaseId.isNotEmpty ? _notionEstudosDiariosDatabaseId : null,
       );
 
       notionService!.verificarConexao().then((conectado) {
@@ -281,15 +308,11 @@ class TimerProvider with ChangeNotifier {
   }
 
   // Salva novas credenciais informadas pelo usuário nas configurações do app
-  Future<void> salvarCredenciaisNotion(String apiKey, String databaseId) async {
+  Future<void> salvarCredenciaisNotion(String apiKey, String databaseId, {String reportsPageId = ''}) async {
     notionApiKey = apiKey.trim();
     notionDatabaseId = databaseId.trim();
-
-    final configMap = config.toJson();
-    configMap['notion_api_key'] = notionApiKey;
-    configMap['notion_database_id'] = notionDatabaseId;
-    await storageService.writeJson(StorageService.configFile, configMap);
-
+    _notionReportsPageId = reportsPageId.trim();
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
     _configurarNotionService();
     notifyListeners();
   }
@@ -836,10 +859,7 @@ class TimerProvider with ChangeNotifier {
     config = novaConfig;
     tempoRestante = config.tempoTrabalho * 60;
 
-    final configMap = config.toJson();
-    configMap['notion_api_key'] = notionApiKey;
-    configMap['notion_database_id'] = notionDatabaseId;
-    await storageService.writeJson(StorageService.configFile, configMap);
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
 
     notifyListeners();
   }
@@ -863,9 +883,64 @@ class TimerProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> gerarRelatorioSemanal({DateTime? inicioSemana, DateTime? fimSemana, String? paginaPaiOverride}) async {
+    final pageId = (paginaPaiOverride?.trim().isNotEmpty == true) ? paginaPaiOverride!.trim() : _notionReportsPageId;
+    if (notionService == null || !notionService!.connected || pageId.isEmpty) return false;
+    if (_gerandoRelatorio) return false;
+
+    final agora = DateTime.now();
+    final segundaAtual = DateTime(agora.year, agora.month, agora.day)
+        .subtract(Duration(days: agora.weekday - 1));
+    final segundaAnterior = segundaAtual.subtract(const Duration(days: 7));
+    final domingoAnterior = segundaAtual.subtract(const Duration(days: 1));
+    final fimDefault = DateTime(domingoAnterior.year, domingoAnterior.month, domingoAnterior.day, 23, 59, 59);
+
+    final inicio = inicioSemana ?? segundaAnterior;
+    final fim = fimSemana ?? fimDefault;
+
+    _gerandoRelatorio = true;
+    notifyListeners();
+
+    final sucesso = await notionService!.criarRelatorioSemanal(
+      paginaPaiId: pageId,
+      inicioSemana: inicio,
+      fimSemana: fim,
+    );
+
+    _gerandoRelatorio = false;
+    if (sucesso) {
+      _ultimoRelatorioSemanalStr =
+          '${segundaAnterior.year}-${segundaAnterior.month.toString().padLeft(2, '0')}-${segundaAnterior.day.toString().padLeft(2, '0')}';
+      await storageService.writeJson(StorageService.configFile, _configParaJson());
+    }
+    notifyListeners();
+    return sucesso;
+  }
+
+  void _checarRelatorioSemanalSilencioso() {
+    if (notionService == null || !notionService!.connected || _notionReportsPageId.isEmpty) return;
+
+    final agora = DateTime.now();
+    final segundaAtual = DateTime(agora.year, agora.month, agora.day)
+        .subtract(Duration(days: agora.weekday - 1));
+    final segundaAnterior = segundaAtual.subtract(const Duration(days: 7));
+    final key =
+        '${segundaAnterior.year}-${segundaAnterior.month.toString().padLeft(2, '0')}-${segundaAnterior.day.toString().padLeft(2, '0')}';
+
+    if (_ultimoRelatorioSemanalStr == key) return;
+
+    gerarRelatorioSemanal().then((_) async {
+      if (_ultimoRelatorioSemanalStr != key) {
+        _ultimoRelatorioSemanalStr = key;
+        await storageService.writeJson(StorageService.configFile, _configParaJson());
+      }
+    });
+  }
+
   @override
   void dispose() {
     _ticker?.cancel();
+    _notifSubscription?.cancel();
     super.dispose();
   }
 }

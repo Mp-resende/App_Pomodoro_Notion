@@ -25,9 +25,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _somAlarme;
   late bool _vibrarAlarme;
   late bool _notifSistema;
+  late TextEditingController _reportsPageIdController;
   late List<String> _categorias;
   bool _iniciado = false;
   bool _buscandoUpdate = false;
+  bool _gerandoRelatorio = false;
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _novaCatController = TextEditingController();
     _apiKeyController = TextEditingController();
     _dbIdController = TextEditingController();
+    _reportsPageIdController = TextEditingController();
     _somAlarme = true;
     _vibrarAlarme = true;
     _notifSistema = true;
@@ -62,11 +65,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     _apiKeyController.text = timerProvider.notionApiKey;
     _dbIdController.text = timerProvider.notionDatabaseId;
+    _reportsPageIdController.text = timerProvider.notionReportsPageId;
 
     _somAlarme = timerProvider.config.somAlarmeAtivado;
     _vibrarAlarme = timerProvider.config.vibrarAoFinalizar;
     _notifSistema = timerProvider.config.notificacoesSistema;
     _categorias = List<String>.from(timerProvider.config.categorias);
+  }
+
+  @override
+  void dispose() {
+    _reportsPageIdController.dispose();
+    super.dispose();
   }
 
   // Adiciona categoria na lista local temporária
@@ -125,6 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await timerProvider.salvarCredenciaisNotion(
       _apiKeyController.text,
       _dbIdController.text,
+      reportsPageId: _reportsPageIdController.text,
     );
 
     // Grava e recarrega os tempos de sessão no cronômetro
@@ -143,6 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final timerProvider = Provider.of<TimerProvider>(context, listen: false);
     return Scaffold(
       appBar: AppBar(
         title: const Text("⚙️ Configurações", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -363,6 +375,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 validator: null,
               ),
 
+              const SizedBox(height: 24),
+              // --- SEÇÃO: RELATÓRIO SEMANAL ---
+              _buildSectionTitle("📊 Relatório Semanal no Notion"),
+              const SizedBox(height: 8),
+              Text(
+                "Informe o ID de uma página do Notion onde os relatórios serão criados automaticamente a cada início de semana.",
+                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11.5),
+              ),
+              const SizedBox(height: 12),
+              _buildTextFormField(
+                controller: _reportsPageIdController,
+                label: "ID da Página de Relatórios (Page ID)",
+                validator: null,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (timerProvider.ultimoRelatorioStr.isNotEmpty)
+                    Expanded(
+                      child: Text(
+                        _formatarUltimoRelatorio(timerProvider.ultimoRelatorioStr),
+                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: (_gerandoRelatorio || _reportsPageIdController.text.trim().isEmpty)
+                        ? null
+                        : () async {
+                            setState(() => _gerandoRelatorio = true);
+                            final tp = Provider.of<TimerProvider>(context, listen: false);
+                            final sucesso = await tp.gerarRelatorioSemanal(
+                              paginaPaiOverride: _reportsPageIdController.text,
+                            );
+                            if (mounted) {
+                              setState(() => _gerandoRelatorio = false);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(sucesso
+                                    ? "✅ Relatório criado no Notion!"
+                                    : "❌ Sem sessões no período ou falha na conexão."),
+                                backgroundColor: sucesso ? Colors.green : Colors.redAccent,
+                              ));
+                            }
+                          },
+                    icon: _gerandoRelatorio
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white),
+                          )
+                        : const Icon(Icons.summarize_rounded, size: 16),
+                    label: Text(
+                      _gerandoRelatorio ? "Gerando..." : "Gerar Última Semana",
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.05),
+                      foregroundColor: Colors.cyanAccent,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 38),
               // --- BOTÕES DE SALVAR/CANCELAR ---
               Row(
@@ -403,6 +481,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  String _formatarUltimoRelatorio(String key) {
+    try {
+      final segunda = DateTime.parse(key);
+      const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      final domingo = segunda.add(const Duration(days: 6));
+      return 'Gerado: ${segunda.day} ${meses[segunda.month - 1]} a ${domingo.day} ${meses[domingo.month - 1]} ${domingo.year}';
+    } catch (_) {
+      return '';
+    }
   }
 
   Widget _buildSectionTitle(String title) {
