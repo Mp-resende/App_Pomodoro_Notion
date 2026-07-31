@@ -84,6 +84,14 @@ New-Item -ItemType Directory -Path "releases\windows" -Force | Out-Null
 Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "releases\windows\" -Recurse -Force
 Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*.apk" -Destination "releases\" -Force
 
+# Remove arquivos locais privados/temporários para que não sejam incluídos no ZIP ou rastreados
+Remove-Item -Path "releases\windows\config.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "releases\windows\dashboard_cache.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "releases\windows\pomodoros_contador.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "releases\windows\sessoes_offline.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "releases\windows\historico_tarefas.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "releases\windows\pomodoro.log" -Force -ErrorAction SilentlyContinue
+
 Write-Host "Criando arquivo ZIP para distribuicao do Windows..." -ForegroundColor Yellow
 Remove-Item -Path "releases\pomodoro_notion_windows.zip" -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path "releases\windows\*" -DestinationPath "releases\pomodoro_notion_windows.zip" -Force
