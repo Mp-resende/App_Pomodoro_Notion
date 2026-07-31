@@ -1,7 +1,8 @@
 # Variáveis de ambiente (credenciais privadas - NUNCA ENVIAR)
-.env
-.env.local
-.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env*
 
 # IDEs e editores de texto
 .vscode/
