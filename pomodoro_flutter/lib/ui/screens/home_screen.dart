@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../logic/providers/timer_provider.dart';
@@ -43,8 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
       // Registra o callback para abrir o popup de comemoração com segurança pós-frame
       timerProvider.onSessionFinished = () {
         if (mounted) {
-          // Pequeno delay para garantir que a FocusScreen (tela sempre ativa)
-          // se feche completamente antes de tentarmos empilhar o popup de conclusão.
+          HapticFeedback.heavyImpact();
           Future.delayed(const Duration(milliseconds: 200), () {
             if (mounted) {
               try {
@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
       // Registra o callback para quando o descanso terminar
       timerProvider.onBreakFinished = () {
         if (mounted) {
+          HapticFeedback.mediumImpact();
           try {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -340,8 +341,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 ),
               ),
             ),
-          // 1. Cabeçalho & Status do Notion
-          const StatusIndicator(),
+          // 1. Cabeçalho & Status do Notion com Botão de Configurações no Topo Direito
+          Row(
+            children: [
+              const Expanded(
+                child: StatusIndicator(),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.settings_rounded, color: Colors.white.withOpacity(0.4)),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  );
+                },
+                tooltip: "Configurações",
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
 
           // 2. Card de Entrada de Informações (Glassmorphism sutil)
@@ -478,6 +495,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                   onPressed: timerProvider.rodando
                       ? null
                       : () {
+                          HapticFeedback.mediumImpact();
                           timerProvider.iniciar(_tarefaController.text, _categoriaSelecionada);
                         },
                   style: ElevatedButton.styleFrom(
@@ -505,7 +523,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 child: ElevatedButton(
                   onPressed: !timerProvider.rodando
                       ? null
-                      : () => timerProvider.pausarRetomar(),
+                      : () {
+                          HapticFeedback.lightImpact();
+                          timerProvider.pausarRetomar();
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orangeAccent,
                     foregroundColor: Colors.black,
@@ -534,6 +555,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   onTap: () {
+                    HapticFeedback.lightImpact();
                     _tarefaController.clear();
                     timerProvider.resetar();
                   },
@@ -565,7 +587,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           ElevatedButton(
             onPressed: !timerProvider.rodando || timerProvider.modoDescanso
                 ? null
-                : () => timerProvider.finalizarSessaoManualmente(),
+                : () {
+                    HapticFeedback.mediumImpact();
+                    timerProvider.finalizarSessaoManualmente();
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purpleAccent,
               foregroundColor: Colors.white,
@@ -647,24 +672,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     style: TextStyle(color: Colors.cyanAccent.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
-                const SizedBox(width: 6),
               ],
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                  );
-                },
-                icon: Icon(Icons.settings_rounded, size: 14, color: Colors.white.withOpacity(0.4)),
-                label: Text(
-                  "Configurações",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 20),
