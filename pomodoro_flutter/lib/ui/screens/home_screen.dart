@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +15,8 @@ import 'focus_screen.dart';
 import 'dashboard_screen.dart';
 import 'settings_screen.dart';
 import '../popups/sync_popup.dart';
+import '../styles/app_theme.dart';
+import '../widgets/focus_timeline.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -27,6 +30,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   final FocusNode _tarefaFocusNode = FocusNode();
   String _categoriaSelecionada = "Python";
   bool _isMiniPlayer = false;
+
+  AppThemeData get theme => Provider.of<TimerProvider>(context, listen: false).theme;
 
   @override
   void initState() {
@@ -124,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   @override
   Widget build(BuildContext context) {
     final timerProvider = Provider.of<TimerProvider>(context);
+    final theme = timerProvider.theme;
 
     // Valida se a categoria selecionada localmente ainda existe no cadastro de configurações
     final categorias = timerProvider.config.categorias;
@@ -134,15 +140,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: theme.backgroundStart,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
+              theme.backgroundStart,
+              theme.backgroundEnd,
             ],
           ),
         ),
@@ -163,12 +169,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
 
   // Layout 1: Mini-Player Minimalista
   Widget _buildMiniPlayer(TimerProvider timerProvider) {
+    final theme = timerProvider.theme;
     final minutos = (timerProvider.tempoRestante ~/ 60).toString().padLeft(2, '0');
     final segundos = (timerProvider.tempoRestante % 60).toString().padLeft(2, '0');
     final tempoStr = '$minutos:$segundos';
 
     final modoTexto = timerProvider.modoDescanso ? "Descanso" : "Foco";
-    final corDestaque = timerProvider.modoDescanso ? Colors.greenAccent : Colors.cyanAccent;
+    final corDestaque = timerProvider.modoDescanso ? theme.secondaryAccent : theme.primaryAccent;
 
     return Container(
       key: const ValueKey("mini_player"),
@@ -292,22 +299,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [
-                      Color(0xFF0F766E), // Ciano
-                      Color(0xFF1D4ED8), // Azul Royal
+                      theme.primaryAccent,
+                      theme.secondaryAccent,
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.cyanAccent.withOpacity(0.3),
+                    color: theme.primaryAccent.withOpacity(0.3),
                     width: 1,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.cyanAccent.withOpacity(0.1),
+                      color: theme.primaryAccent.withOpacity(0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     )
@@ -349,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: Icon(Icons.settings_rounded, color: Colors.white.withOpacity(0.4)),
+                icon: Icon(Icons.settings_rounded, color: theme.textSecondary.withOpacity(0.4)),
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -362,17 +369,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           const SizedBox(height: 20),
 
           // 2. Card de Entrada de Informações (Glassmorphism sutil)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.015),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.06),
-                width: 1,
-              ),
-            ),
-            child: Column(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.015),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.cardBorder,
+                    width: 1,
+                  ),
+                ),
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Input de texto com autocomplete
@@ -398,16 +409,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     color: Colors.white.withOpacity(0.035),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.08),
+                      color: theme.cardBorder.withOpacity(0.5),
                       width: 1,
                     ),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _categoriaSelecionada,
-                      dropdownColor: const Color(0xFF1E293B),
+                      dropdownColor: theme.surface,
                       style: const TextStyle(color: Colors.white, fontSize: 13),
-                      icon: Icon(Icons.arrow_drop_down_rounded, color: Colors.white.withOpacity(0.5)),
+                      icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.5)),
                       isExpanded: true,
                       items: categorias.map((cat) {
                         return DropdownMenuItem<String>(
@@ -433,14 +444,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               ],
             ),
           ),
+        ),
+      ),
 
           const SizedBox(height: 24),
           // 3. Indicador de quantidade de Pomodoros concluídos
           Center(
             child: Text(
               "🍅 Hoje: ${timerProvider.pomodorosHoje} | Sessão: ${timerProvider.pomodorosCompletados}",
-              style: const TextStyle(
-                color: Colors.redAccent,
+              style: TextStyle(
+                color: theme.secondaryAccent,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.5,
@@ -450,11 +463,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           const SizedBox(height: 18),
 
           // 4. Exibição do Timer Circular Animado
-          CircularTimer(
-            progress: timerProvider.progresso,
-            timeStr: timerProvider.obterTempoFormatado(),
-            modoDescanso: timerProvider.modoDescanso,
-            pausado: timerProvider.pausado,
+          Hero(
+            tag: 'timer_hero',
+            child: CircularTimer(
+              progress: timerProvider.progresso,
+              timeStr: timerProvider.obterTempoFormatado(),
+              modoDescanso: timerProvider.modoDescanso,
+              pausado: timerProvider.pausado,
+            ),
           ),
           const SizedBox(height: 14),
 
@@ -499,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                           timerProvider.iniciar(_tarefaController.text, _categoriaSelecionada);
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent,
+                    backgroundColor: theme.primaryAccent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -528,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                           timerProvider.pausarRetomar();
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orangeAccent,
+                    backgroundColor: theme.secondaryAccent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -592,8 +608,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     timerProvider.finalizarSessaoManualmente();
                   },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purpleAccent,
-              foregroundColor: Colors.white,
+              backgroundColor: theme.primaryAccent.withOpacity(0.2),
+              foregroundColor: theme.primaryAccent,
+              side: BorderSide(color: theme.primaryAccent.withOpacity(0.3)),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               disabledBackgroundColor: Colors.white.withOpacity(0.02),
@@ -609,7 +626,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+          // --- LINHA DO TEMPO DIÁRIA ---
+          FocusTimeline(
+            sessoes: timerProvider.sessoesHoje,
+            theme: theme,
+          ),
+
+          const SizedBox(height: 16),
           // Botões de rodapé: Modo Foco, Mini-Player e Configurações
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -620,11 +644,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     MaterialPageRoute(builder: (context) => const DashboardScreen()),
                   );
                 },
-                icon: Icon(Icons.bar_chart_rounded, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                icon: Icon(Icons.bar_chart_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
                 label: Text(
                   "Gráficos",
                   style: TextStyle(
-                    color: Colors.cyanAccent.withOpacity(0.6),
+                    color: theme.primaryAccent.withOpacity(0.6),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -637,11 +661,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     MaterialPageRoute(builder: (context) => const FocusScreen()),
                   );
                 },
-                icon: Icon(Icons.remove_red_eye_outlined, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                icon: Icon(Icons.remove_red_eye_outlined, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
                 label: Text(
                   "Always Awake",
                   style: TextStyle(
-                    color: Colors.cyanAccent.withOpacity(0.6),
+                    color: theme.primaryAccent.withOpacity(0.6),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -651,11 +675,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               if (Platform.isWindows) ...[
                 TextButton.icon(
                   onPressed: _alternarMiniPlayer,
-                  icon: Icon(Icons.picture_in_picture_alt_rounded, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                  icon: Icon(Icons.picture_in_picture_alt_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
                   label: Text(
                     "Mini Player",
                     style: TextStyle(
-                      color: Colors.cyanAccent.withOpacity(0.6),
+                      color: theme.primaryAccent.withOpacity(0.6),
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -666,10 +690,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               if (Platform.isAndroid) ...[
                 TextButton.icon(
                   onPressed: () => SyncPopup.mostrar(context),
-                  icon: Icon(Icons.wifi_rounded, size: 14, color: Colors.cyanAccent.withOpacity(0.6)),
+                  icon: Icon(Icons.wifi_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
                   label: Text(
                     'Sync PC',
-                    style: TextStyle(color: Colors.cyanAccent.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: theme.primaryAccent.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],

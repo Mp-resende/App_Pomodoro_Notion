@@ -7,6 +7,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/services/notion_service.dart';
 import '../../core/services/update_service.dart';
 import '../../data/models/pomodoro_config.dart';
+import '../../ui/styles/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
 
 class TimerProvider with ChangeNotifier {
@@ -54,16 +55,26 @@ class TimerProvider with ChangeNotifier {
   Timer? _ticker;
   StreamSubscription<String?>? _notifSubscription;
 
+  // Tema Neon do Aplicativo
+  String temaNeon = "cyberpunk";
+  AppThemeData get theme => AppThemeData.getTheme(temaNeon);
+
+  // Histórico de sessões do dia de hoje para a Linha de Tempo
+  List<Map<String, dynamic>> _sessoesHoje = [];
+  List<Map<String, dynamic>> get sessoesHoje => _sessoesHoje;
+
   // Credenciais do Notion (podem vir do .env ou do config.json)
   String notionApiKey = "";
   String notionDatabaseId = "";
-  String _notionMateriasDatabaseId = "";
-  String _notionEstudosDiariosDatabaseId = "";
-  String _notionReportsPageId = "";
+  String _notionMateriasDatabaseId = "2aa75b83-d245-80a5-a194-ede969ff4e45";
+  String _notionEstudosDiariosDatabaseId = "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
+  String _notionReportsPageId = "3ad75b83d245805c9dd9000cd33d0ad9";
   String _ultimoRelatorioSemanalStr = "";
   bool _gerandoRelatorio = false;
 
   String get notionReportsPageId => _notionReportsPageId;
+  String get notionMateriasDbId => _notionMateriasDatabaseId;
+  String get notionEstudosDiariosDbId => _notionEstudosDiariosDatabaseId;
   bool get gerandoRelatorio => _gerandoRelatorio;
   String get ultimoRelatorioStr => _ultimoRelatorioSemanalStr;
 
@@ -89,22 +100,28 @@ class TimerProvider with ChangeNotifier {
       notionApiKey = configData['notion_api_key']?.toString() ?? "";
       notionDatabaseId = configData['notion_database_id']?.toString() ?? "";
       _notionMateriasDatabaseId = configData['notion_materias_db_id']?.toString() ?? "";
+      if (_notionMateriasDatabaseId.isEmpty) _notionMateriasDatabaseId = "2aa75b83-d245-80a5-a194-ede969ff4e45";
       _notionEstudosDiariosDatabaseId = configData['notion_estudos_diarios_db_id']?.toString() ?? "";
+      if (_notionEstudosDiariosDatabaseId.isEmpty) _notionEstudosDiariosDatabaseId = "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
       _notionReportsPageId = configData['notion_reports_page_id']?.toString() ?? "";
+      if (_notionReportsPageId.isEmpty) _notionReportsPageId = "3ad75b83d245805c9dd9000cd33d0ad9";
       _ultimoRelatorioSemanalStr = configData['ultimo_relatorio_semanal']?.toString() ?? "";
       _ultimaChecagemUpdateStr = configData['ultima_checagem_update']?.toString() ?? "";
+      temaNeon = configData['tema_neon']?.toString() ?? "cyberpunk";
     } else {
       config = PomodoroConfig();
     }
 
-    // 2. Tenta ler o arquivo .env (apenas no Windows) para manter compatibilidade com chaves locais
+    // 2. Tenta ler o arquivo .env (apenas no Windows) como fallback caso config.json esteja vazio
     if (Platform.isWindows) {
-      final env = await _lerDotEnv();
-      if (env.containsKey("NOTION_API_KEY")) {
-        notionApiKey = env["NOTION_API_KEY"]!;
-      }
-      if (env.containsKey("DATABASE_ID")) {
-        notionDatabaseId = env["DATABASE_ID"]!;
+      if (notionApiKey.isEmpty || notionDatabaseId.isEmpty) {
+        final env = await _lerDotEnv();
+        if (env.containsKey("NOTION_API_KEY") && notionApiKey.isEmpty) {
+          notionApiKey = env["NOTION_API_KEY"]!;
+        }
+        if (env.containsKey("DATABASE_ID") && notionDatabaseId.isEmpty) {
+          notionDatabaseId = env["DATABASE_ID"]!;
+        }
       }
     }
 
@@ -123,6 +140,9 @@ class TimerProvider with ChangeNotifier {
     tempoRestante = config.tempoTrabalho * 60;
     inicializado = true;
     notifyListeners();
+
+    // Sincroniza as sessões de hoje do Notion em segundo plano
+    sincronizarSessoesHojeDoNotion();
 
     // Escuta eventos de botões interativos das notificações (Android)
     _notifSubscription = NotificationService.onActionSelected.stream.listen((actionId) {
@@ -198,7 +218,14 @@ class TimerProvider with ChangeNotifier {
     map['notion_reports_page_id'] = _notionReportsPageId;
     map['ultima_checagem_update'] = _ultimaChecagemUpdateStr;
     map['ultimo_relatorio_semanal'] = _ultimoRelatorioSemanalStr;
+    map['tema_neon'] = temaNeon;
     return map;
+  }
+
+  Future<void> mudarTema(String novoTema) async {
+    temaNeon = novoTema.trim().toLowerCase();
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
+    notifyListeners();
   }
 
   Future<void> _salvarDataChecagem() async {
@@ -310,10 +337,18 @@ class TimerProvider with ChangeNotifier {
   }
 
   // Salva novas credenciais informadas pelo usuário nas configurações do app
-  Future<void> salvarCredenciaisNotion(String apiKey, String databaseId, {String reportsPageId = ''}) async {
+  Future<void> salvarCredenciaisNotion(
+    String apiKey,
+    String databaseId, {
+    String reportsPageId = '',
+    String materiasDbId = '',
+    String estudosDiariosDbId = '',
+  }) async {
     notionApiKey = apiKey.trim();
     notionDatabaseId = databaseId.trim();
     _notionReportsPageId = reportsPageId.trim();
+    _notionMateriasDatabaseId = materiasDbId.trim().isNotEmpty ? materiasDbId.trim() : "2aa75b83-d245-80a5-a194-ede969ff4e45";
+    _notionEstudosDiariosDatabaseId = estudosDiariosDbId.trim().isNotEmpty ? estudosDiariosDbId.trim() : "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
     await storageService.writeJson(StorageService.configFile, _configParaJson());
     _configurarNotionService();
     notifyListeners();
@@ -328,6 +363,9 @@ class TimerProvider with ChangeNotifier {
         final dataHoje = DateTime.now().toIso8601String().substring(0, 10);
         if (contadorData['data'] == dataHoje) {
           pomodorosHoje = contadorData['count'] as int? ?? 0;
+          _sessoesHoje = (contadorData['sessoes'] as List<dynamic>? ?? [])
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
         }
       }
     } catch (_) {}
@@ -339,6 +377,7 @@ class TimerProvider with ChangeNotifier {
       await storageService.writeJson(StorageService.contadorFile, {
         "data": dataHoje,
         "count": pomodorosHoje,
+        "sessoes": _sessoesHoje,
       });
     } catch (_) {}
   }
@@ -590,6 +629,13 @@ class TimerProvider with ChangeNotifier {
     }
     pomodorosCompletados++;
     pomodorosHoje++;
+    if (tempoInicio != null && tempoFim != null) {
+      _sessoesHoje.add({
+        "inicio": tempoInicio!.toIso8601String(),
+        "fim": tempoFim!.toIso8601String(),
+        "tecnologia": categoriaAtual,
+      });
+    }
     _salvarContadorHoje();
 
     if (Platform.isAndroid) {
@@ -737,6 +783,7 @@ class TimerProvider with ChangeNotifier {
       labelStatus = pomodoroCompleto ? "✓ Registrado no Notion!" : "✓ Sessão encerrada e registrada!";
       textStatusColor = "#4CAF50";
       await _atualizarSessoesOfflineCount();
+      sincronizarSessoesHojeDoNotion();
       if (onSessionRecorded != null) {
         onSessionRecorded!();
       }
@@ -760,6 +807,19 @@ class TimerProvider with ChangeNotifier {
         sessaoEmFinalizacao = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<void> sincronizarSessoesHojeDoNotion() async {
+    if (notionService == null || !notionService!.connected) return;
+    try {
+      final sessoes = await notionService!.obterSessoesHoje();
+      _sessoesHoje = sessoes;
+      pomodorosHoje = sessoes.length;
+      await _salvarContadorHoje();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Erro ao sincronizar sessoes de hoje: $e");
     }
   }
 
@@ -885,10 +945,12 @@ class TimerProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> gerarRelatorioSemanal({DateTime? inicioSemana, DateTime? fimSemana, String? paginaPaiOverride}) async {
+  Future<String?> gerarRelatorioSemanal({DateTime? inicioSemana, DateTime? fimSemana, String? paginaPaiOverride}) async {
     final pageId = (paginaPaiOverride?.trim().isNotEmpty == true) ? paginaPaiOverride!.trim() : _notionReportsPageId;
-    if (notionService == null || !notionService!.connected || pageId.isEmpty) return false;
-    if (_gerandoRelatorio) return false;
+    if (notionService == null) return "Notion nao configurado";
+    if (!notionService!.connected) return "Notion offline - Modo local ativo";
+    if (pageId.isEmpty) return "ID da pagina mae esta vazio";
+    if (_gerandoRelatorio) return "Ja existe uma geracao em progresso";
 
     final agora = DateTime.now();
     final segundaAtual = DateTime(agora.year, agora.month, agora.day)
@@ -903,20 +965,29 @@ class TimerProvider with ChangeNotifier {
     _gerandoRelatorio = true;
     notifyListeners();
 
-    final sucesso = await notionService!.criarRelatorioSemanal(
-      paginaPaiId: pageId,
-      inicioSemana: inicio,
-      fimSemana: fim,
-    );
+    try {
+      final sucesso = await notionService!.criarRelatorioSemanal(
+        paginaPaiId: pageId,
+        inicioSemana: inicio,
+        fimSemana: fim,
+      );
 
-    _gerandoRelatorio = false;
-    if (sucesso) {
-      _ultimoRelatorioSemanalStr =
-          '${segundaAnterior.year}-${segundaAnterior.month.toString().padLeft(2, '0')}-${segundaAnterior.day.toString().padLeft(2, '0')}';
-      await storageService.writeJson(StorageService.configFile, _configParaJson());
+      _gerandoRelatorio = false;
+      if (sucesso) {
+        _ultimoRelatorioSemanalStr =
+            '${segundaAnterior.year}-${segundaAnterior.month.toString().padLeft(2, '0')}-${segundaAnterior.day.toString().padLeft(2, '0')}';
+        await storageService.writeJson(StorageService.configFile, _configParaJson());
+        notifyListeners();
+        return null; // Sucesso
+      } else {
+        notifyListeners();
+        return "Sem sessoes no periodo ou falha de resposta da API do Notion.";
+      }
+    } catch (e) {
+      _gerandoRelatorio = false;
+      notifyListeners();
+      return "Erro ao gerar relatorio: $e";
     }
-    notifyListeners();
-    return sucesso;
   }
 
   void _checarRelatorioSemanalSilencioso() {

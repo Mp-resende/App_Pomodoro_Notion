@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../logic/providers/timer_provider.dart';
+import '../styles/app_theme.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({Key? key}) : super(key: key);
@@ -69,8 +70,9 @@ class _FocusScreenState extends State<FocusScreen> {
                 final segundos = (timer.tempoRestante % 60).toString().padLeft(2, '0');
                 final formatoTempo = '$minutos:$segundos';
                 
+                final theme = timer.theme;
                 final modoTexto = timer.modoDescanso ? "Descanso" : "Foco Profundo";
-                final corDestaque = timer.modoDescanso ? Colors.greenAccent : Colors.cyanAccent;
+                final corDestaque = timer.modoDescanso ? theme.secondaryAccent : theme.primaryAccent;
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -99,7 +101,7 @@ class _FocusScreenState extends State<FocusScreen> {
                     IconButton(
                       onPressed: () => timer.pausarRetomar(),
                       iconSize: 42,
-                      color: Colors.white54,
+                      color: corDestaque.withOpacity(0.5),
                       icon: Icon(
                         timer.rodando ? Icons.pause_circle_outline : Icons.play_circle_outline,
                       ),

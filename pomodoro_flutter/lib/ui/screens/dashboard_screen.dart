@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../logic/providers/dashboard_provider.dart';
+import '../../logic/providers/timer_provider.dart';
+import '../styles/app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,6 +15,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   late AnimationController _rotateController;
   int _pieTouchedIndex = -1;
+
+  AppThemeData get theme => Provider.of<TimerProvider>(context, listen: false).theme;
 
   @override
   void initState() {
@@ -61,9 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Slate 900
+      backgroundColor: theme.backgroundStart,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B), // Slate 800
+        backgroundColor: theme.backgroundStart,
         elevation: 0,
         title: const Text(
           'Estatísticas de Estudo',
@@ -77,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           RotationTransition(
             turns: _rotateController,
             child: IconButton(
-              icon: const Icon(Icons.sync_rounded, color: Colors.cyanAccent),
+              icon: Icon(Icons.sync_rounded, color: theme.primaryAccent),
               onPressed: dashboard.carregando
                   ? null
                   : () async {
@@ -101,11 +105,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       body: Builder(
         builder: (context) {
           if (dashboard.carregando && !dashboard.temDados) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Colors.cyanAccent),
+                  CircularProgressIndicator(color: theme.primaryAccent),
                   SizedBox(height: 16),
                   Text('Baixando dados do Notion...', style: TextStyle(color: Colors.white70)),
                 ],
@@ -273,9 +277,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       width: width,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), // Slate 800
+        color: theme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: theme.cardBorder.withOpacity(0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

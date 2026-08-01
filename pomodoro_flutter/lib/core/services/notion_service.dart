@@ -529,10 +529,9 @@ class NotionService {
       };
     } catch (e) {
       stderr.writeln('Erro ao buscar dados do dashboard: $e');
-      return {};
+      rethrow;
     }
   }
-
   // Consulta genérica com paginação automática (cursor-based)
   Future<List<dynamic>> _queryDatabase(String dbId) async {
     final url = Uri.parse('https://api.notion.com/v1/databases/$dbId/query');
@@ -587,16 +586,16 @@ class NotionService {
       };
       if (cursor != null) body["start_cursor"] = cursor;
 
-      try {
-        final response = await http
-            .post(url, headers: _headers, body: jsonEncode(body))
-            .timeout(const Duration(seconds: 15));
-        if (response.statusCode != 200) break;
+      final response = await http
+          .post(url, headers: _headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 15));
+      
+      if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         allResults.addAll(data['results'] as List<dynamic>? ?? []);
         cursor = (data['has_more'] as bool? ?? false) ? data['next_cursor'] as String? : null;
-      } catch (_) {
-        break;
+      } else {
+        throw Exception('Falha ao consultar sessões (Status ${response.statusCode}): ${response.body}');
       }
     } while (cursor != null);
 
@@ -713,14 +712,39 @@ class NotionService {
       "children": blocks,
     });
 
-    try {
-      final response = await http
-          .post(url, headers: _headers, body: reqBody)
-          .timeout(const Duration(seconds: 15));
-      return response.statusCode == 200 || response.statusCode == 201;
-    } catch (_) {
-      return false;
+    final response = await http
+        .post(url, headers: _headers, body: reqBody)
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    } else {
+      throw Exception('Falha ao criar relatorio no Notion (Status ${response.statusCode}): ${response.body}');
     }
+  }
+
+  Future<List<Map<String, dynamic>>> obterSessoesHoje() async {
+    final agora = DateTime.now();
+    final inicioDia = DateTime(agora.year, agora.month, agora.day, 0, 0, 0);
+    final fimDia = DateTime(agora.year, agora.month, agora.day, 23, 59, 59);
+    final results = await _querySessoesPeriodo(inicioDia, fimDia);
+    
+    final List<Map<String, dynamic>> sessoes = [];
+    for (final r in results) {
+      final props = r['properties'] as Map<String, dynamic>? ?? {};
+
+      final inicioStr = (props['Início'] as Map<String, dynamic>?)?['date']?['start'] as String?;
+      final fimStr = (props['Fim'] as Map<String, dynamic>?)?['date']?['start'] as String?;
+      final tech = (props['Tecnologia'] as Map<String, dynamic>?)?['select']?['name'] as String? ?? 'Outros';
+      
+      if (inicioStr != null && fimStr != null) {
+        sessoes.add({
+          "inicio": inicioStr,
+          "fim": fimStr,
+          "tecnologia": tech,
+        });
+      }
+    }
+    return sessoes;
   }
 
   Map<String, dynamic> _calloutBlock(String text) => {

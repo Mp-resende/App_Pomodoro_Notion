@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../data/models/pomodoro_config.dart';
 import '../../../logic/providers/timer_provider.dart';
 import '../../../core/services/update_service.dart';
+import '../styles/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -21,6 +22,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _novaCatController;
   late TextEditingController _apiKeyController;
   late TextEditingController _dbIdController;
+  late TextEditingController _materiasDbIdController;
+  late TextEditingController _estudosDiariosDbIdController;
 
   late bool _somAlarme;
   late bool _vibrarAlarme;
@@ -42,6 +45,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _novaCatController = TextEditingController();
     _apiKeyController = TextEditingController();
     _dbIdController = TextEditingController();
+    _materiasDbIdController = TextEditingController();
+    _estudosDiariosDbIdController = TextEditingController();
     _reportsPageIdController = TextEditingController();
     _somAlarme = true;
     _vibrarAlarme = true;
@@ -66,6 +71,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiKeyController.text = timerProvider.notionApiKey;
     _dbIdController.text = timerProvider.notionDatabaseId;
     _reportsPageIdController.text = timerProvider.notionReportsPageId;
+    _materiasDbIdController.text = timerProvider.notionMateriasDbId;
+    _estudosDiariosDbIdController.text = timerProvider.notionEstudosDiariosDbId;
 
     _somAlarme = timerProvider.config.somAlarmeAtivado;
     _vibrarAlarme = timerProvider.config.vibrarAoFinalizar;
@@ -76,6 +83,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _reportsPageIdController.dispose();
+    _materiasDbIdController.dispose();
+    _estudosDiariosDbIdController.dispose();
     super.dispose();
   }
 
@@ -136,6 +145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _apiKeyController.text,
       _dbIdController.text,
       reportsPageId: _reportsPageIdController.text,
+      materiasDbId: _materiasDbIdController.text,
+      estudosDiariosDbId: _estudosDiariosDbIdController.text,
     );
 
     // Grava e recarrega os tempos de sessão no cronômetro
@@ -155,21 +166,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final timerProvider = Provider.of<TimerProvider>(context, listen: false);
+    final theme = timerProvider.theme;
     return Scaffold(
       appBar: AppBar(
         title: const Text("⚙️ Configurações", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: theme.backgroundStart,
         elevation: 0,
       ),
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: theme.backgroundStart,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
+              theme.backgroundStart,
+              theme.backgroundEnd,
             ],
           ),
         ),
@@ -290,6 +302,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               const SizedBox(height: 24),
+              // --- SEÇÃO: PERSONALIZAÇÃO ---
+              _buildSectionTitle("🎨 Personalização"),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: ['Cyberpunk', 'Dracula', 'Matrix', 'Forest'].map((t) {
+                  final selecionado = timerProvider.temaNeon == t.toLowerCase();
+                  final tColor = AppThemeData.getTheme(t).primaryAccent;
+                  return ChoiceChip(
+                    label: Text(
+                      t,
+                      style: TextStyle(
+                        color: selecionado ? Colors.black : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    selected: selecionado,
+                    selectedColor: tColor,
+                    backgroundColor: Colors.white.withOpacity(0.035),
+                    checkmarkColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: selecionado ? tColor : Colors.white.withOpacity(0.06),
+                      ),
+                    ),
+                    onSelected: (val) {
+                      if (val) {
+                        timerProvider.mudarTema(t);
+                        setState(() {});
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 24),
               // --- SEÇÃO: INFORMAÇÕES E ATUALIZAÇÕES ---
               _buildSectionTitle("⚙️ Aplicativo"),
               const SizedBox(height: 12),
@@ -371,7 +422,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               _buildTextFormField(
                 controller: _dbIdController,
-                label: "ID da Base de Dados (Database ID)",
+                label: "ID da Tabela: Intervalos de Foco (Database ID)",
+                validator: null,
+              ),
+              const SizedBox(height: 12),
+              _buildTextFormField(
+                controller: _materiasDbIdController,
+                label: "ID da Tabela: Matérias (Database ID)",
+                validator: null,
+              ),
+              const SizedBox(height: 12),
+              _buildTextFormField(
+                controller: _estudosDiariosDbIdController,
+                label: "ID da Tabela: Estudos Diários/Tópicos (Database ID)",
                 validator: null,
               ),
 
@@ -407,16 +470,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : () async {
                             setState(() => _gerandoRelatorio = true);
                             final tp = Provider.of<TimerProvider>(context, listen: false);
-                            final sucesso = await tp.gerarRelatorioSemanal(
+                            final erro = await tp.gerarRelatorioSemanal(
                               paginaPaiOverride: _reportsPageIdController.text,
                             );
                             if (mounted) {
                               setState(() => _gerandoRelatorio = false);
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(sucesso
+                                content: Text(erro == null
                                     ? "✅ Relatório criado no Notion!"
-                                    : "❌ Sem sessões no período ou falha na conexão."),
-                                backgroundColor: sucesso ? Colors.green : Colors.redAccent,
+                                    : "❌ $erro"),
+                                backgroundColor: erro == null ? Colors.green : Colors.redAccent,
                               ));
                             }
                           },
@@ -449,7 +512,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: ElevatedButton(
                       onPressed: _salvar,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
+                        backgroundColor: theme.primaryAccent,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
