@@ -15,34 +15,57 @@ class StatusIndicator extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Ponto indicador com brilho neon
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: conectado ? Colors.greenAccent : Colors.redAccent,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (conectado ? Colors.greenAccent : Colors.redAccent).withOpacity(0.4),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      )
+            // Ponto indicador com brilho neon (toque para sincronizar manualmente)
+            GestureDetector(
+              onTap: !conectado ? null : () async {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Sincronizando foco do dia com o Notion..."),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+                await timerProvider.sincronizarSessoesHojeDoNotion();
+              },
+              child: MouseRegion(
+                cursor: conectado ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: conectado ? Colors.greenAccent : Colors.redAccent,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (conectado ? Colors.greenAccent : Colors.redAccent).withOpacity(0.4),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      conectado ? "Notion Conectado" : "Modo Offline",
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: conectado ? Colors.greenAccent : Colors.redAccent,
+                      ),
+                    ),
+                    if (conectado) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.sync_rounded,
+                        size: 12,
+                        color: Colors.greenAccent.withOpacity(0.6),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  conectado ? "Notion Conectado" : "Modo Offline",
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.bold,
-                    color: conectado ? Colors.greenAccent : Colors.redAccent,
-                  ),
-                ),
-              ],
+              ),
             ),
             // Botão "Reconectar" estilo Glassmorphism sutil (exibido apenas quando desconectado)
             if (!conectado)

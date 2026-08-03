@@ -868,6 +868,7 @@ class TimerProvider with ChangeNotifier {
       if (qtd > 0) {
         labelStatus = "✓ Sincronizadas $qtd sessões offline!";
         textStatusColor = "#4CAF50";
+        sincronizarSessoesHojeDoNotion();
         if (onSessionRecorded != null) {
           onSessionRecorded!();
         }
@@ -895,6 +896,7 @@ class TimerProvider with ChangeNotifier {
     if (qtd > 0) {
       labelStatus = "✓ Sincronizadas $qtd sessões offline!";
       textStatusColor = "#4CAF50";
+      sincronizarSessoesHojeDoNotion();
       if (onSessionRecorded != null) {
         onSessionRecorded!();
       }

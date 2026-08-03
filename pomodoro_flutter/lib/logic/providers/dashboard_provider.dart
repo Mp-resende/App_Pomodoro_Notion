@@ -99,6 +99,8 @@ class DashboardProvider with ChangeNotifier {
         _invalidarCache();
         await timerProvider.storageService.writeJson('dashboard_cache.json', dados);
         erroMessage = null;
+        // Força sincronização da linha do tempo diária para garantir que sessões novas apareçam na tela inicial
+        await timerProvider.sincronizarSessoesHojeDoNotion();
       } else {
         erroMessage = "Nenhum dado retornado do Notion";
       }
