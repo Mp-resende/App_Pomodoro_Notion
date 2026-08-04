@@ -115,6 +115,103 @@ class DashboardProvider with ChangeNotifier {
 
   // Getters para UI consumidora
 
+  Map<String, String> get insightsSemanais {
+    if (sessoes.isEmpty) {
+      return {
+        "dia_produtivo": "Nenhum",
+        "foco_principal": "Nenhum",
+        "media_diaria": "0 min",
+      };
+    }
+
+    final agora = DateTime.now();
+    final diaSemanaAtual = agora.weekday; // 1 = Segunda, 7 = Domingo
+    final segundaFeira = agora.subtract(Duration(days: diaSemanaAtual - 1));
+    final inicioSemana = DateTime(segundaFeira.year, segundaFeira.month, segundaFeira.day, 0, 0, 0);
+    final fimSemana = inicioSemana.add(const Duration(days: 7)).subtract(const Duration(seconds: 1));
+
+    // Agrupadores
+    final Map<int, int> minutosPorDia = {for (int i = 1; i <= 7; i++) i: 0};
+    final Map<String, int> minutosPorTecnologia = {};
+    int totalMinutosSemana = 0;
+    int diasComFoco = 0;
+
+    for (final s in sessoes) {
+      if (s is! Map<String, dynamic>) continue;
+      final inicioStr = s['inicio'] as String?;
+      final fimStr = s['fim'] as String?;
+      final tech = s['tecnologia'] as String? ?? 'Outros';
+
+      if (inicioStr == null || fimStr == null) continue;
+      final DateTime? dateIni = DateTime.tryParse(inicioStr)?.toLocal();
+      final DateTime? dateFim = DateTime.tryParse(fimStr)?.toLocal();
+      if (dateIni == null || dateFim == null) continue;
+
+      // Verifica se a sessão pertence à semana atual
+      if (dateIni.isAfter(inicioSemana.subtract(const Duration(seconds: 1))) &&
+          dateIni.isBefore(fimSemana.add(const Duration(seconds: 1)))) {
+        final duracaoMinutos = dateFim.difference(dateIni).inMinutes;
+        final weekday = dateIni.weekday;
+
+        minutosPorDia[weekday] = (minutosPorDia[weekday] ?? 0) + duracaoMinutos;
+        minutosPorTecnologia[tech] = (minutosPorTecnologia[tech] ?? 0) + duracaoMinutos;
+        totalMinutosSemana += duracaoMinutos;
+      }
+    }
+
+    // Calcula dia mais produtivo
+    int diaLider = -1;
+    int maxMinutosDia = -1;
+    final nomesDias = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+    minutosPorDia.forEach((day, mins) {
+      if (mins > 0) diasComFoco++;
+      if (mins > maxMinutosDia) {
+        maxMinutosDia = mins;
+        diaLider = day;
+      }
+    });
+
+    String diaLiderStr = "Nenhum";
+    if (diaLider != -1 && maxMinutosDia > 0) {
+      final h = maxMinutosDia ~/ 60;
+      final m = maxMinutosDia % 60;
+      diaLiderStr = "${nomesDias[diaLider - 1]} (${h > 0 ? '${h}h' : ''}${m}m)";
+    }
+
+    // Calcula tecnologia líder (foco principal)
+    String techLider = "Nenhum";
+    int maxMinutosTech = -1;
+    minutosPorTecnologia.forEach((tech, mins) {
+      if (mins > maxMinutosTech) {
+        maxMinutosTech = mins;
+        techLider = tech;
+      }
+    });
+
+    String techLiderStr = "Nenhum";
+    if (techLider != "Nenhum" && maxMinutosTech > 0) {
+      final h = maxMinutosTech ~/ 60;
+      final m = maxMinutosTech % 60;
+      final pct = totalMinutosSemana > 0 ? ((maxMinutosTech / totalMinutosSemana) * 100).toStringAsFixed(0) : "0";
+      techLiderStr = "$techLider (${h > 0 ? '${h}h' : ''}${m}m | $pct%)";
+    }
+
+    // Média diária de estudos
+    String mediaDiariaStr = "0 min";
+    if (diasComFoco > 0) {
+      final media = totalMinutosSemana ~/ 7; // Média pela semana fechada de 7 dias
+      final h = media ~/ 60;
+      final m = media % 60;
+      mediaDiariaStr = "${h > 0 ? '${h}h' : ''}${m}m / dia";
+    }
+
+    return {
+      "dia_produtivo": diaLiderStr,
+      "foco_principal": techLiderStr,
+      "media_diaria": mediaDiariaStr,
+    };
+  }
+
   List<dynamic> get sessoes => dadosDashboard['sessoes'] as List<dynamic>? ?? [];
 
   bool get temDados => sessoes.isNotEmpty;

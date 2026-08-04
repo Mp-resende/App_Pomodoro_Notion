@@ -348,21 +348,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 ),
               ),
             ),
-          // 1. Cabeçalho & Status do Notion com Botão de Configurações no Topo Direito
+          // 1. Cabeçalho & Status do Notion com Ações no Topo Direito
           Row(
             children: [
               const Expanded(
                 child: StatusIndicator(),
               ),
               const SizedBox(width: 8),
+              if (Platform.isAndroid)
+                IconButton(
+                  icon: Icon(Icons.wifi_rounded, color: theme.primaryAccent.withOpacity(0.6)),
+                  tooltip: "Sync PC",
+                  onPressed: () => SyncPopup.mostrar(context),
+                ),
+              IconButton(
+                icon: Icon(Icons.remove_red_eye_outlined, color: theme.primaryAccent.withOpacity(0.6)),
+                tooltip: "Always Awake",
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const FocusScreen()),
+                  );
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.bar_chart_rounded, color: theme.primaryAccent.withOpacity(0.6)),
+                tooltip: "Gráficos",
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                  );
+                },
+              ),
+              if (Platform.isWindows)
+                IconButton(
+                  icon: Icon(Icons.picture_in_picture_alt_rounded, color: theme.primaryAccent.withOpacity(0.6)),
+                  tooltip: "Mini Player",
+                  onPressed: _alternarMiniPlayer,
+                ),
               IconButton(
                 icon: Icon(Icons.settings_rounded, color: theme.textSecondary.withOpacity(0.4)),
+                tooltip: "Configurações",
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => const SettingsScreen()),
                   );
                 },
-                tooltip: "Configurações",
               ),
             ],
           ),
@@ -633,73 +663,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
             theme: theme,
           ),
 
-          const SizedBox(height: 16),
-          // Botões de rodapé: Modo Foco, Mini-Player e Configurações
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                  );
-                },
-                icon: Icon(Icons.bar_chart_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
-                label: Text(
-                  "Gráficos",
-                  style: TextStyle(
-                    color: theme.primaryAccent.withOpacity(0.6),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const FocusScreen()),
-                  );
-                },
-                icon: Icon(Icons.remove_red_eye_outlined, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
-                label: Text(
-                  "Always Awake",
-                  style: TextStyle(
-                    color: theme.primaryAccent.withOpacity(0.6),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              if (Platform.isWindows) ...[
-                TextButton.icon(
-                  onPressed: _alternarMiniPlayer,
-                  icon: Icon(Icons.picture_in_picture_alt_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
-                  label: Text(
-                    "Mini Player",
-                    style: TextStyle(
-                      color: theme.primaryAccent.withOpacity(0.6),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              if (Platform.isAndroid) ...[
-                TextButton.icon(
-                  onPressed: () => SyncPopup.mostrar(context),
-                  icon: Icon(Icons.wifi_rounded, size: 14, color: theme.primaryAccent.withOpacity(0.6)),
-                  label: Text(
-                    'Sync PC',
-                    style: TextStyle(color: theme.primaryAccent.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
         ],
       ),
     );

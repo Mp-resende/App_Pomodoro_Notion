@@ -9,6 +9,7 @@ import '../../core/services/update_service.dart';
 import '../../data/models/pomodoro_config.dart';
 import '../../ui/styles/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:windows_taskbar/windows_taskbar.dart';
 
 class TimerProvider with ChangeNotifier {
   final StorageService storageService;
@@ -66,11 +67,14 @@ class TimerProvider with ChangeNotifier {
   // Credenciais do Notion (podem vir do .env ou do config.json)
   String notionApiKey = "";
   String notionDatabaseId = "";
-  String _notionMateriasDatabaseId = "2aa75b83-d245-80a5-a194-ede969ff4e45";
-  String _notionEstudosDiariosDatabaseId = "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
-  String _notionReportsPageId = "3ad75b83d245805c9dd9000cd33d0ad9";
+  String _notionMateriasDatabaseId = "";
+  String _notionEstudosDiariosDatabaseId = "";
+  String _notionReportsPageId = "";
   String _ultimoRelatorioSemanalStr = "";
   bool _gerandoRelatorio = false;
+
+  List<String> dashboardOrdem = ["kpis", "insights", "pizza", "barras", "metas", "linha_tempo"];
+  List<String> dashboardOcultos = [];
 
   String get notionReportsPageId => _notionReportsPageId;
   String get notionMateriasDbId => _notionMateriasDatabaseId;
@@ -100,14 +104,20 @@ class TimerProvider with ChangeNotifier {
       notionApiKey = configData['notion_api_key']?.toString() ?? "";
       notionDatabaseId = configData['notion_database_id']?.toString() ?? "";
       _notionMateriasDatabaseId = configData['notion_materias_db_id']?.toString() ?? "";
-      if (_notionMateriasDatabaseId.isEmpty) _notionMateriasDatabaseId = "2aa75b83-d245-80a5-a194-ede969ff4e45";
       _notionEstudosDiariosDatabaseId = configData['notion_estudos_diarios_db_id']?.toString() ?? "";
-      if (_notionEstudosDiariosDatabaseId.isEmpty) _notionEstudosDiariosDatabaseId = "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
       _notionReportsPageId = configData['notion_reports_page_id']?.toString() ?? "";
-      if (_notionReportsPageId.isEmpty) _notionReportsPageId = "3ad75b83d245805c9dd9000cd33d0ad9";
       _ultimoRelatorioSemanalStr = configData['ultimo_relatorio_semanal']?.toString() ?? "";
       _ultimaChecagemUpdateStr = configData['ultima_checagem_update']?.toString() ?? "";
       temaNeon = configData['tema_neon']?.toString() ?? "cyberpunk";
+
+      final ordem = configData['dashboard_ordem'] as List<dynamic>?;
+      if (ordem != null) {
+        dashboardOrdem = ordem.map((e) => e.toString()).toList();
+      }
+      final ocultos = configData['dashboard_ocultos'] as List<dynamic>?;
+      if (ocultos != null) {
+        dashboardOcultos = ocultos.map((e) => e.toString()).toList();
+      }
     } else {
       config = PomodoroConfig();
     }
@@ -219,6 +229,8 @@ class TimerProvider with ChangeNotifier {
     map['ultima_checagem_update'] = _ultimaChecagemUpdateStr;
     map['ultimo_relatorio_semanal'] = _ultimoRelatorioSemanalStr;
     map['tema_neon'] = temaNeon;
+    map['dashboard_ordem'] = dashboardOrdem;
+    map['dashboard_ocultos'] = dashboardOcultos;
     return map;
   }
 
@@ -347,8 +359,8 @@ class TimerProvider with ChangeNotifier {
     notionApiKey = apiKey.trim();
     notionDatabaseId = databaseId.trim();
     _notionReportsPageId = reportsPageId.trim();
-    _notionMateriasDatabaseId = materiasDbId.trim().isNotEmpty ? materiasDbId.trim() : "2aa75b83-d245-80a5-a194-ede969ff4e45";
-    _notionEstudosDiariosDatabaseId = estudosDiariosDbId.trim().isNotEmpty ? estudosDiariosDbId.trim() : "2aa75b83-d245-80d9-b29e-c362f3ebbd09";
+    _notionMateriasDatabaseId = materiasDbId.trim();
+    _notionEstudosDiariosDatabaseId = estudosDiariosDbId.trim();
     await storageService.writeJson(StorageService.configFile, _configParaJson());
     _configurarNotionService();
     notifyListeners();
@@ -440,6 +452,7 @@ class TimerProvider with ChangeNotifier {
     }
 
     _iniciarTicker();
+    _atualizarBarraDeTarefasWindows();
     notifyListeners();
   }
 
@@ -497,6 +510,7 @@ class TimerProvider with ChangeNotifier {
       labelStatus = "Pausado";
       textStatusColor = "#FFA500";
     }
+    _atualizarBarraDeTarefasWindows();
     notifyListeners();
   }
 
@@ -519,6 +533,7 @@ class TimerProvider with ChangeNotifier {
     progresso = 0.0;
     sessaoEmFinalizacao = false;
     tarefaAtual = ""; // Limpa a descrição da tarefa atual
+    _atualizarBarraDeTarefasWindows();
     notifyListeners();
   }
 
@@ -560,6 +575,7 @@ class TimerProvider with ChangeNotifier {
     labelDecorrido = "";
 
     _iniciarTicker();
+    _atualizarBarraDeTarefasWindows();
     notifyListeners();
   }
 
@@ -590,11 +606,13 @@ class TimerProvider with ChangeNotifier {
         final segundos = totalDecorrido % 60;
         labelDecorrido = "⏱ Focado há ${minutos.toString().padLeft(2, '0')}:${segundos.toString().padLeft(2, '0')}";
       }
+      _atualizarBarraDeTarefasWindows();
       notifyListeners();
     } else {
       _ticker?.cancel();
       tempoRestante = 0;
       progresso = 1.0;
+      _atualizarBarraDeTarefasWindows();
       notifyListeners();
       
       if (modoDescanso) {
@@ -910,6 +928,47 @@ class TimerProvider with ChangeNotifier {
     final minutos = tempoRestante ~/ 60;
     final segundos = tempoRestante % 60;
     return '${minutos.toString().padLeft(2, '0')}:${segundos.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> salvarLayoutDashboard(List<String> ordem, List<String> ocultos) async {
+    dashboardOrdem = List<String>.from(ordem);
+    dashboardOcultos = List<String>.from(ocultos);
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
+    notifyListeners();
+  }
+
+  void _atualizarBarraDeTarefasWindows() {
+    if (!Platform.isWindows) return;
+
+    try {
+      final tempoStr = obterTempoFormatado();
+
+      if (!rodando) {
+        WindowsTaskbar.setProgressMode(TaskbarProgressMode.noProgress);
+        windowManager.setTitle("Pomodoro Notion");
+        return;
+      }
+
+      final modoStr = modoDescanso ? "Descanso" : "Foco";
+
+      if (pausado) {
+        WindowsTaskbar.setProgressMode(TaskbarProgressMode.paused);
+        windowManager.setTitle("[$tempoStr] Pausado ($modoStr) - Pomodoro Notion");
+      } else {
+        WindowsTaskbar.setProgressMode(TaskbarProgressMode.normal);
+        
+        int total = config.tempoTrabalho * 60;
+        if (modoDescanso) {
+          total = (tipoDescanso == "longo" ? config.tempoDescansoLongo : config.tempoDescansoCurto) * 60;
+        }
+        final decorrido = (total - tempoRestante).clamp(0, total);
+
+        WindowsTaskbar.setProgress(decorrido, total);
+        windowManager.setTitle("[$tempoStr] $modoStr - Pomodoro Notion");
+      }
+    } catch (e) {
+      debugPrint("Erro ao atualizar barra de tarefas do Windows: $e");
+    }
   }
 
   // Atualização e gravação de novas durações do Pomodoro

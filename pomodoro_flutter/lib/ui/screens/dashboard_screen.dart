@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../logic/providers/dashboard_provider.dart';
 import '../../logic/providers/timer_provider.dart';
 import '../styles/app_theme.dart';
+import '../widgets/weekly_focus_timeline.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,6 +16,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   late AnimationController _rotateController;
   int _pieTouchedIndex = -1;
+  String _metasFiltro = "Todas";
+  String _metasOrdenacao = "Progresso (%)";
 
   AppThemeData get theme => Provider.of<TimerProvider>(context, listen: false).theme;
 
@@ -56,6 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final dashboard = Provider.of<DashboardProvider>(context);
+    final timerProvider = Provider.of<TimerProvider>(context);
 
     // Controla a rotação do botão de atualizar baseado no carregamento
     if (dashboard.carregando) {
@@ -78,6 +82,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.dashboard_customize_rounded, color: theme.secondaryAccent),
+            tooltip: "Editar Layout",
+            onPressed: _abrirConfiguracaoLayout,
+          ),
           RotationTransition(
             turns: _rotateController,
             child: IconButton(
@@ -181,31 +190,77 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 _buildFilterBar(context, dashboard),
                 const SizedBox(height: 4),
 
-                // Cards de KPIs de Visão Geral
-                _buildKPIs(dashboard),
-                const SizedBox(height: 20),
+                ...timerProvider.dashboardOrdem.map((key) {
+                  if (timerProvider.dashboardOcultos.contains(key)) {
+                    return const SizedBox.shrink();
+                  }
 
-                // Gráfico 1: Horas por Matéria ou Detalhes da Matéria
-                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Detalhamento da Matéria' : 'Distribuição de Estudos por Matéria'),
-                dashboard.materiaSelecionada != null
-                    ? _buildMateriaDetalheCard(dashboard)
-                    : _buildPieChartCard(dashboard),
-                const SizedBox(height: 24),
+                  switch (key) {
+                    case 'kpis':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildKPIs(dashboard),
+                          const SizedBox(height: 20),
+                        ],
+                      );
+                    case 'insights':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (dashboard.temDados) ...[
+                            _buildWeeklyInsights(dashboard),
+                            const SizedBox(height: 24),
+                          ],
+                        ],
+                      );
+                    case 'pizza':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Detalhamento da Matéria' : 'Distribuição de Estudos por Matéria'),
+                          dashboard.materiaSelecionada != null
+                              ? _buildMateriaDetalheCard(dashboard)
+                              : _buildPieChartCard(dashboard),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    case 'barras':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Evolução de Foco: ${dashboard.materiaSelecionada}' : 'Evolução de Foco'),
+                          _buildBarChartCard(dashboard),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    case 'metas':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Metas Semanais (Segunda a Domingo)'),
+                          _buildMetasCard(dashboard),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    case 'linha_tempo':
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Foco Durante a Semana (Segunda a Domingo)'),
+                          WeeklyFocusTimeline(
+                            sessoes: dashboard.dadosDashboard['sessoes'] ?? [],
+                            theme: theme,
+                          ),
+                           const SizedBox(height: 24),
+                         ],
+                       );
+                    default:
+                      return const SizedBox.shrink();
+                  }
+                }).toList(),
 
-                // Gráfico 2: Evolução Diária
-                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Evolução de Foco: ${dashboard.materiaSelecionada}' : 'Evolução de Foco'),
-                _buildBarChartCard(dashboard),
-                const SizedBox(height: 24),
 
-                // Progresso de Metas
-                _buildSectionTitle('Metas Semanais (Segunda a Domingo)'),
-                _buildMetasCard(dashboard),
-                const SizedBox(height: 24),
-
-                // Tipo de Estudo
-                _buildSectionTitle(dashboard.materiaSelecionada != null ? 'Metodologias de Estudo: ${dashboard.materiaSelecionada}' : 'Metodologias de Estudo'),
-                _buildTipoEstudoCard(dashboard),
-                const SizedBox(height: 24),
 
                 // Rodapé de Atualização
                 Center(
@@ -220,6 +275,105 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           );
         },
       ),
+    );
+  }
+
+  Widget _buildWeeklyInsights(DashboardProvider dashboard) {
+    final insights = dashboard.insightsSemanais;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.cardBorder.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, color: theme.secondaryAccent, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "Insights Semanais de Foco",
+                style: TextStyle(
+                  color: theme.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildInsightRow(
+            icon: Icons.local_fire_department_rounded,
+            color: Colors.orangeAccent,
+            titulo: "Dia mais produtivo",
+            valor: insights["dia_produtivo"] ?? "Nenhum",
+          ),
+          const SizedBox(height: 12),
+          _buildInsightRow(
+            icon: Icons.lightbulb_rounded,
+            color: theme.primaryAccent,
+            titulo: "Foco principal da semana",
+            valor: insights["foco_principal"] ?? "Nenhum",
+          ),
+          const SizedBox(height: 12),
+          _buildInsightRow(
+            icon: Icons.trending_up_rounded,
+            color: Colors.greenAccent,
+            titulo: "Média diária de estudos",
+            valor: insights["media_diaria"] ?? "0 min",
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightRow({
+    required IconData icon,
+    required Color color,
+    required String titulo,
+    required String valor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: TextStyle(
+                  color: theme.textSecondary.withOpacity(0.6),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                valor,
+                style: TextStyle(
+                  color: theme.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -534,76 +688,161 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   // Painel de Metas Semanais
   Widget _buildMetasCard(DashboardProvider dashboard) {
-    final metas = dashboard.metasProgresso;
+    final rawMetas = dashboard.metasProgresso;
 
-    if (metas.isEmpty) {
+    if (rawMetas.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: theme.surface,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.cardBorder.withOpacity(0.5)),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             'Nenhuma meta ou matéria encontrada.',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
+            style: TextStyle(color: theme.textSecondary.withOpacity(0.4), fontSize: 13),
           ),
         ),
       );
     }
 
+    List<Map<String, dynamic>> metas = List<Map<String, dynamic>>.from(rawMetas);
+
+    // 1. Aplicação de Filtros
+    if (_metasFiltro == "Concluídas") {
+      metas = metas.where((m) => m['meta_horas'] > 0 && m['realizado_horas'] >= m['meta_horas']).toList();
+    } else if (_metasFiltro == "Em Andamento") {
+      metas = metas.where((m) => m['meta_horas'] > 0 && m['realizado_horas'] < m['meta_horas']).toList();
+    } else if (_metasFiltro == "Sem Meta") {
+      metas = metas.where((m) => m['meta_horas'] == 0).toList();
+    }
+
+    // 2. Aplicação de Ordenações
+    if (_metasOrdenacao == "Nome") {
+      metas.sort((a, b) => (a['materia_nome'] as String).compareTo(b['materia_nome'] as String));
+    } else if (_metasOrdenacao == "Progresso (%)") {
+      metas.sort((a, b) => (b['porcentagem'] as double).compareTo(a['porcentagem'] as double));
+    } else if (_metasOrdenacao == "Realizado (h)") {
+      metas.sort((a, b) => (b['realizado_horas'] as double).compareTo(a['realizado_horas'] as double));
+    } else if (_metasOrdenacao == "Meta (h)") {
+      metas.sort((a, b) => (b['meta_horas'] as double).compareTo(a['meta_horas'] as double));
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: theme.surface,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.cardBorder.withOpacity(0.5)),
       ),
       child: Column(
-        children: metas.map((meta) {
-          final String nome = meta['materia_nome'];
-          final double metaH = meta['meta_horas'];
-          final double realH = meta['realizado_horas'];
-          final double pct = meta['porcentagem'];
-          final corMateria = _obterCorMateria(nome);
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Barra de Filtros e Ordenações
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.filter_list_rounded, size: 14, color: theme.textSecondary.withOpacity(0.6)),
+                  const SizedBox(width: 6),
+                  DropdownButton<String>(
+                    value: _metasFiltro,
+                    dropdownColor: theme.surface,
+                    style: TextStyle(color: theme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                    underline: const SizedBox(),
+                    icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.6), size: 16),
+                    items: ["Todas", "Concluídas", "Em Andamento", "Sem Meta"].map((f) {
+                      return DropdownMenuItem(value: f, child: Text(f));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _metasFiltro = val);
+                    },
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Icon(Icons.sort_rounded, size: 14, color: theme.textSecondary.withOpacity(0.6)),
+                  const SizedBox(width: 6),
+                  DropdownButton<String>(
+                    value: _metasOrdenacao,
+                    dropdownColor: theme.surface,
+                    style: TextStyle(color: theme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                    underline: const SizedBox(),
+                    icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.6), size: 16),
+                    items: ["Nome", "Progresso (%)", "Realizado (h)", "Meta (h)"].map((o) {
+                      return DropdownMenuItem(value: o, child: Text(o));
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setState(() => _metasOrdenacao = val);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: theme.cardBorder.withOpacity(0.3), height: 1),
+          const SizedBox(height: 12),
+          if (metas.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: Text(
+                  'Nenhuma meta corresponde ao filtro.',
+                  style: TextStyle(color: theme.textSecondary.withOpacity(0.4), fontSize: 12),
+                ),
+              ),
+            )
+          else
+            ...metas.map((meta) {
+              final String nome = meta['materia_nome'];
+              final double metaH = meta['meta_horas'];
+              final double realH = meta['realizado_horas'];
+              final double pct = meta['porcentagem'];
+              final corMateria = _obterCorMateria(nome);
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      nome,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          nome,
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textPrimary),
+                        ),
+                        Text(
+                          metaH > 0
+                              ? '${realH.toStringAsFixed(1)}h de ${metaH.toStringAsFixed(1)}h'
+                              : '${realH.toStringAsFixed(1)}h (Sem Meta)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: metaH > 0 && realH >= metaH ? Colors.greenAccent : theme.textSecondary.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      metaH > 0
-                          ? '${realH.toStringAsFixed(1)}h de ${metaH.toStringAsFixed(1)}h'
-                          : '${realH.toStringAsFixed(1)}h (Sem Meta)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: metaH > 0 && realH >= metaH ? Colors.greenAccent : Colors.white54,
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: metaH > 0 ? (pct > 1.0 ? 1.0 : pct) : 1.0,
+                        minHeight: 8,
+                        backgroundColor: theme.textSecondary.withOpacity(0.05),
+                        valueColor: AlwaysStoppedAnimation<Color>(corMateria),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: metaH > 0 ? (pct > 1.0 ? 1.0 : pct) : 1.0,
-                    minHeight: 8,
-                    backgroundColor: Colors.white10,
-                    valueColor: AlwaysStoppedAnimation<Color>(corMateria),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+              );
+            }).toList(),
+        ],
       ),
     );
   }
@@ -661,6 +900,139 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           );
         }).toList(),
       ),
+    );
+  }
+
+  void _abrirConfiguracaoLayout() {
+    final timerProvider = Provider.of<TimerProvider>(context, listen: false);
+    List<String> localOrdem = List<String>.from(timerProvider.dashboardOrdem);
+    List<String> localOcultos = List<String>.from(timerProvider.dashboardOcultos);
+
+    final Map<String, String> nomesBlocos = {
+      "kpis": "Resumo Geral (KPIs)",
+      "insights": "Insights Semanais",
+      "pizza": "Distribuição por Matéria (Pizza)",
+      "barras": "Evolução de Estudos (Barras)",
+      "metas": "Metas Semanais",
+      "linha_tempo": "Linha do Tempo Semanal",
+    };
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: theme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: theme.cardBorder.withOpacity(0.5)),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.dashboard_customize_rounded, color: theme.secondaryAccent, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Layout do Dashboard",
+                    style: TextStyle(color: theme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Container(
+                width: double.maxFinite,
+                height: 380,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Arraste para reordenar ou use as chaves para ocultar/exibir seções:",
+                      style: TextStyle(color: theme.textSecondary.withOpacity(0.6), fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          canvasColor: theme.surface,
+                        ),
+                        child: ReorderableListView(
+                          onReorder: (oldIndex, newIndex) {
+                            setDialogState(() {
+                              if (oldIndex < newIndex) {
+                                newIndex -= 1;
+                              }
+                              final String item = localOrdem.removeAt(oldIndex);
+                              localOrdem.insert(newIndex, item);
+                            });
+                          },
+                          children: localOrdem.map((key) {
+                            final nome = nomesBlocos[key] ?? key;
+                            final visivel = !localOcultos.contains(key);
+
+                            return ListTile(
+                              key: ValueKey(key),
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.drag_indicator_rounded, color: theme.textSecondary.withOpacity(0.4)),
+                              title: Text(
+                                  nome,
+                                  style: TextStyle(
+                                    color: visivel ? theme.textPrimary : theme.textSecondary.withOpacity(0.4),
+                                    fontSize: 13,
+                                    fontWeight: visivel ? FontWeight.bold : FontWeight.normal,
+                                    decoration: visivel ? TextDecoration.none : TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              trailing: Transform.scale(
+                                scale: 0.8,
+                                child: Switch(
+                                  value: visivel,
+                                  activeColor: theme.primaryAccent,
+                                  onChanged: (val) {
+                                    setDialogState(() {
+                                      if (val) {
+                                        localOcultos.remove(key);
+                                      } else {
+                                        if (!localOcultos.contains(key)) {
+                                          localOcultos.add(key);
+                                        }
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("Cancelar", style: TextStyle(color: theme.textSecondary.withOpacity(0.6))),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primaryAccent.withOpacity(0.1),
+                    foregroundColor: theme.primaryAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: theme.primaryAccent.withOpacity(0.5)),
+                    ),
+                  ),
+                  onPressed: () async {
+                    await timerProvider.salvarLayoutDashboard(localOrdem, localOcultos);
+                    setState(() {});
+                    Navigator.pop(context);
+                  },
+                  child: const Text("Salvar", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

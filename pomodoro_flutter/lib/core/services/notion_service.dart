@@ -27,6 +27,14 @@ class NotionService {
         'Content-Type': 'application/json',
       };
 
+  String _formatarParaIso8601ComOffset(DateTime dt) {
+    // Converte a data para UTC e depois desloca 3 horas para trás (GMT -3:00)
+    // Garantindo consistência de fuso horário independente de configurações locais do aparelho
+    final gmt3 = dt.toUtc().subtract(const Duration(hours: 3));
+    final dateStr = gmt3.toIso8601String().split('.').first;
+    return "$dateStr.000-03:00";
+  }
+
   // Verifica se a conexão com o Notion está ativa
   Future<bool> verificarConexao({int retries = 3}) async {
     final url = Uri.parse('https://api.notion.com/v1/databases/$databaseId');
@@ -64,10 +72,9 @@ class NotionService {
   }) async {
     if (intervalo.trim().isEmpty) return false;
 
-    // Converte datas locais do cronômetro para String ISO 8601 em formato UTC
-    // garantindo timezone preciso independente do dispositivo
-    final inicioIso = inicio.toUtc().toIso8601String();
-    final fimIso = fim.toUtc().toIso8601String();
+    // Converte datas locais do cronômetro para String ISO 8601 no fuso GMT -3:00
+    final inicioIso = _formatarParaIso8601ComOffset(inicio);
+    final fimIso = _formatarParaIso8601ComOffset(fim);
 
     if (!connected) {
       await _salvarSessaoOffline(intervalo, inicio, fim, tecnologia, campoRelacao, idRelacao);
@@ -577,8 +584,8 @@ class NotionService {
       final Map<String, dynamic> body = {
         "filter": {
           "and": [
-            {"property": "Início", "date": {"on_or_after": inicio.toUtc().toIso8601String()}},
-            {"property": "Início", "date": {"on_or_before": fim.toUtc().toIso8601String()}},
+            {"property": "Início", "date": {"on_or_after": _formatarParaIso8601ComOffset(inicio)}},
+            {"property": "Início", "date": {"on_or_before": _formatarParaIso8601ComOffset(fim)}},
           ]
         },
         "sorts": [{"property": "Início", "direction": "ascending"}],
