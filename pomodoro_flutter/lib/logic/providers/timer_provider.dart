@@ -76,6 +76,10 @@ class TimerProvider with ChangeNotifier {
   List<String> dashboardOrdem = ["kpis", "insights", "pizza", "barras", "metas", "linha_tempo"];
   List<String> dashboardOcultos = [];
 
+  // Modo de Contexto (Estudos vs Trabalho)
+  String modoContexto = "estudos"; // "estudos" ou "trabalho"
+  List<String> materiasTrabalho = ["Implanta"];
+
   String get notionReportsPageId => _notionReportsPageId;
   String get notionMateriasDbId => _notionMateriasDatabaseId;
   String get notionEstudosDiariosDbId => _notionEstudosDiariosDatabaseId;
@@ -117,6 +121,12 @@ class TimerProvider with ChangeNotifier {
       final ocultos = configData['dashboard_ocultos'] as List<dynamic>?;
       if (ocultos != null) {
         dashboardOcultos = ocultos.map((e) => e.toString()).toList();
+      }
+
+      modoContexto = configData['modo_contexto']?.toString() ?? "estudos";
+      final matTrab = configData['materias_trabalho'] as List<dynamic>?;
+      if (matTrab != null) {
+        materiasTrabalho = matTrab.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
       }
     } else {
       config = PomodoroConfig();
@@ -231,7 +241,34 @@ class TimerProvider with ChangeNotifier {
     map['tema_neon'] = temaNeon;
     map['dashboard_ordem'] = dashboardOrdem;
     map['dashboard_ocultos'] = dashboardOcultos;
+    map['modo_contexto'] = modoContexto;
+    map['materias_trabalho'] = materiasTrabalho;
     return map;
+  }
+
+  Future<void> alternarModoContexto(String novoModo) async {
+    if (modoContexto == novoModo) return;
+    modoContexto = novoModo;
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
+    notifyListeners();
+  }
+
+  Future<void> salvarMateriasTrabalho(List<String> materias) async {
+    materiasTrabalho = materias.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
+    notifyListeners();
+  }
+
+  bool isMateriaTrabalho(String? materiaNome, [String? areaMateria]) {
+    if (areaMateria != null && areaMateria.trim().toLowerCase() == "trabalho") {
+      return true;
+    }
+    if (materiaNome == null || materiaNome.isEmpty) return false;
+    final nomeNorm = materiaNome.trim().toLowerCase();
+    for (final mat in materiasTrabalho) {
+      if (mat.trim().toLowerCase() == nomeNorm) return true;
+    }
+    return false;
   }
 
   Future<void> mudarTema(String novoTema) async {
@@ -357,10 +394,10 @@ class TimerProvider with ChangeNotifier {
     String estudosDiariosDbId = '',
   }) async {
     notionApiKey = apiKey.trim();
-    notionDatabaseId = databaseId.trim();
-    _notionReportsPageId = reportsPageId.trim();
-    _notionMateriasDatabaseId = materiasDbId.trim();
-    _notionEstudosDiariosDatabaseId = estudosDiariosDbId.trim();
+    notionDatabaseId = NotionService.extrairIdNotion(databaseId);
+    _notionReportsPageId = NotionService.extrairIdNotion(reportsPageId);
+    _notionMateriasDatabaseId = NotionService.extrairIdNotion(materiasDbId);
+    _notionEstudosDiariosDatabaseId = NotionService.extrairIdNotion(estudosDiariosDbId);
     await storageService.writeJson(StorageService.configFile, _configParaJson());
     _configurarNotionService();
     notifyListeners();
@@ -642,18 +679,19 @@ class TimerProvider with ChangeNotifier {
     if (sessaoEmFinalizacao) return;
     sessaoEmFinalizacao = true;
     rodando = false;
-    if (tempoFim == null) {
-      tempoFim = DateTime.now();
-    }
+
+    // Regra: O horário final gravado é sempre o horário inicial + a duração planejada da sessão (independente de pausas)
+    final inicioSessao = tempoInicio ?? DateTime.now().subtract(Duration(minutes: config.tempoTrabalho));
+    final fimRegistrado = inicioSessao.add(Duration(minutes: config.tempoTrabalho));
+    tempoFim = fimRegistrado;
+
     pomodorosCompletados++;
     pomodorosHoje++;
-    if (tempoInicio != null && tempoFim != null) {
-      _sessoesHoje.add({
-        "inicio": tempoInicio!.toIso8601String(),
-        "fim": tempoFim!.toIso8601String(),
-        "tecnologia": categoriaAtual,
-      });
-    }
+    _sessoesHoje.add({
+      "inicio": inicioSessao.toIso8601String(),
+      "fim": fimRegistrado.toIso8601String(),
+      "tecnologia": categoriaAtual,
+    });
     _salvarContadorHoje();
 
     if (Platform.isAndroid) {
@@ -667,7 +705,7 @@ class TimerProvider with ChangeNotifier {
     notifyListeners();
 
     // 1. Prioridade Máxima: Registra a sessão no Notion imediatamente
-    _registrarNoNotion(tarefaAtual, tempoInicio!, tempoFim!, categoriaAtual, true);
+    _registrarNoNotion(tarefaAtual, inicioSessao, fimRegistrado, categoriaAtual, true);
 
     // 2. Toca som de alarme com proteção de erros
     if (config.somAlarmeAtivado) {
@@ -717,7 +755,13 @@ class TimerProvider with ChangeNotifier {
     _ticker?.cancel();
     sessaoEmFinalizacao = true;
     rodando = false;
-    tempoFim = DateTime.now();
+
+    final inicioSessao = tempoInicio ?? DateTime.now();
+    final totalSegundosConfig = config.tempoTrabalho * 60;
+    final segundosFocados = (totalSegundosConfig - tempoRestante).clamp(0, totalSegundosConfig);
+    // Para encerramento manual antecipado, grava o início + tempo efetivo corrido no cronômetro
+    final fimRegistrado = inicioSessao.add(Duration(seconds: segundosFocados));
+    tempoFim = fimRegistrado;
 
     if (Platform.isAndroid) {
       notificationService.removerNotificacaoCronometro();
@@ -728,7 +772,7 @@ class TimerProvider with ChangeNotifier {
     labelDecorrido = "";
     notifyListeners();
 
-    _registrarNoNotion("[Encerrado] $tarefaAtual", tempoInicio!, tempoFim!, categoriaAtual, false);
+    _registrarNoNotion("[Encerrado] $tarefaAtual", inicioSessao, fimRegistrado, categoriaAtual, false);
   }
 
   void _finalizarDescanso() {
@@ -987,6 +1031,20 @@ class TimerProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Ajusta diretamente a duração do foco (em minutos) a partir da tela inicial
+  Future<void> definirMinutosFoco(int minutos) async {
+    if (rodando) return;
+    final clampMinutos = minutos.clamp(1, 180);
+    config.tempoTrabalho = clampMinutos;
+    tempoRestante = clampMinutos * 60;
+    labelStatus = "⏱ Foco ajustado para $clampMinutos min";
+    textStatusColor = "#4CAF50";
+
+    await storageService.writeJson(StorageService.configFile, _configParaJson());
+    _atualizarBarraDeTarefasWindows();
+    notifyListeners();
+  }
+
   // Acionado quando o aplicativo é minimizado ou a tela é desligada
   void mostrarNotificacaoMinimizada() {
     if (Platform.isAndroid && tempoFim != null && rodando) {
@@ -1007,7 +1065,8 @@ class TimerProvider with ChangeNotifier {
   }
 
   Future<String?> gerarRelatorioSemanal({DateTime? inicioSemana, DateTime? fimSemana, String? paginaPaiOverride}) async {
-    final pageId = (paginaPaiOverride?.trim().isNotEmpty == true) ? paginaPaiOverride!.trim() : _notionReportsPageId;
+    final rawPageId = (paginaPaiOverride?.trim().isNotEmpty == true) ? paginaPaiOverride!.trim() : _notionReportsPageId;
+    final pageId = NotionService.extrairIdNotion(rawPageId);
     if (notionService == null) return "Notion nao configurado";
     if (!notionService!.connected) return "Notion offline - Modo local ativo";
     if (pageId.isEmpty) return "ID da pagina mae esta vazio";

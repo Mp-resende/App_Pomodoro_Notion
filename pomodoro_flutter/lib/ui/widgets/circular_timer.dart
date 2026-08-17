@@ -6,6 +6,7 @@ class CircularTimer extends StatelessWidget {
   final String timeStr;
   final bool modoDescanso;
   final bool pausado;
+  final VoidCallback? onTapTempo;
 
   const CircularTimer({
     Key? key,
@@ -13,6 +14,7 @@ class CircularTimer extends StatelessWidget {
     required this.timeStr,
     required this.modoDescanso,
     required this.pausado,
+    this.onTapTempo,
   }) : super(key: key);
 
   @override
@@ -67,23 +69,72 @@ class CircularTimer extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedOpacity(
-                opacity: pausado ? 0.6 : 1.0,
-                duration: const Duration(milliseconds: 250),
-                child: Text(
-                  timeStr,
-                  style: TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace', // Mantém fonte mono para evitar vibração nos números
-                    color: corDestaque,
-                    letterSpacing: 2,
-                    shadows: [
-                      Shadow(
-                        color: corDestaque.withOpacity(0.35),
-                        blurRadius: 12,
-                      ),
-                    ],
+              MouseRegion(
+                cursor: onTapTempo != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                child: GestureDetector(
+                  onTap: onTapTempo,
+                  behavior: HitTestBehavior.opaque,
+                  child: Tooltip(
+                    message: onTapTempo != null ? "Toque para alterar a duração" : "",
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedOpacity(
+                          opacity: pausado ? 0.6 : 1.0,
+                          duration: const Duration(milliseconds: 250),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 280),
+                            transitionBuilder: (child, animation) {
+                              return SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0.0, 0.25),
+                                  end: Offset.zero,
+                                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                                child: FadeTransition(opacity: animation, child: child),
+                              );
+                            },
+                            child: Text(
+                              timeStr,
+                              key: ValueKey<String>(timeStr),
+                              style: TextStyle(
+                                fontSize: 52,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'monospace',
+                                color: corDestaque,
+                                letterSpacing: 2,
+                                shadows: [
+                                  Shadow(
+                                    color: corDestaque.withOpacity(0.35),
+                                    blurRadius: 12,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (onTapTempo != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.touch_app_outlined, size: 11, color: corDestaque.withOpacity(0.45)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "Ajustar tempo",
+                                  style: TextStyle(
+                                    color: corDestaque.withOpacity(0.45),
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

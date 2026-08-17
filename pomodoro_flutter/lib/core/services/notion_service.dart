@@ -35,6 +35,30 @@ class NotionService {
     return "$dateStr.000-03:00";
   }
 
+  // Extrai o ID UUID limpo de 32 caracteres a partir de uma URL ou string do Notion
+  static String extrairIdNotion(String raw) {
+    var str = raw.trim();
+    if (str.isEmpty) return '';
+    if (str.contains('?')) str = str.split('?').first;
+    if (str.contains('#')) str = str.split('#').first;
+
+    while (str.endsWith('/')) {
+      str = str.substring(0, str.length - 1);
+    }
+
+    // 1. Tenta encontrar UUID formatado com hífens (8-4-4-4-12)
+    final uuidRegex = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
+    final matchUuid = uuidRegex.firstMatch(str);
+    if (matchUuid != null) return matchUuid.group(0)!;
+
+    // 2. Tenta encontrar 32 caracteres hexadecimais contínuos
+    final hex32Regex = RegExp(r'[0-9a-fA-F]{32}');
+    final matchHex = hex32Regex.firstMatch(str);
+    if (matchHex != null) return matchHex.group(0)!;
+
+    return str;
+  }
+
   // Verifica se a conexão com o Notion está ativa
   Future<bool> verificarConexao({int retries = 3}) async {
     final url = Uri.parse('https://api.notion.com/v1/databases/$databaseId');
@@ -615,7 +639,8 @@ class NotionService {
     required DateTime inicioSemana,
     required DateTime fimSemana,
   }) async {
-    if (!connected || paginaPaiId.trim().isEmpty) return false;
+    final pageIdLimpo = extrairIdNotion(paginaPaiId);
+    if (!connected || pageIdLimpo.isEmpty) return false;
 
     final sessoes = await _querySessoesPeriodo(inicioSemana, fimSemana);
     if (sessoes.isEmpty) return false;
@@ -708,7 +733,7 @@ class NotionService {
 
     final url = Uri.parse('https://api.notion.com/v1/pages');
     final reqBody = jsonEncode({
-      "parent": {"page_id": paginaPaiId.trim()},
+      "parent": {"page_id": pageIdLimpo},
       "properties": {
         "title": {
           "title": [

@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../logic/providers/timer_provider.dart';
 import '../../core/services/tray_service.dart';
 import '../popups/completion_popup.dart';
+import '../popups/time_picker_popup.dart';
 import '../widgets/autocomplete_input.dart';
 import '../widgets/circular_timer.dart';
 import '../widgets/relation_selector.dart';
@@ -416,6 +417,111 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // 1. Seletor de Modo: Estudos 📚 vs Trabalho 💼
+                Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.06),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Botão Estudos
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: timerProvider.rodando
+                              ? null
+                              : () => timerProvider.alternarModoContexto("estudos"),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: timerProvider.modoContexto == "estudos"
+                                  ? theme.primaryAccent.withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: timerProvider.modoContexto == "estudos"
+                                    ? theme.primaryAccent
+                                    : Colors.transparent,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text("📚", style: TextStyle(fontSize: 13)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Estudos",
+                                  style: TextStyle(
+                                    color: timerProvider.modoContexto == "estudos"
+                                        ? Colors.white
+                                        : Colors.white54,
+                                    fontSize: 12,
+                                    fontWeight: timerProvider.modoContexto == "estudos"
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Botão Trabalho
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: timerProvider.rodando
+                              ? null
+                              : () => timerProvider.alternarModoContexto("trabalho"),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            decoration: BoxDecoration(
+                              color: timerProvider.modoContexto == "trabalho"
+                                  ? const Color(0xFFF59E0B).withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: timerProvider.modoContexto == "trabalho"
+                                    ? const Color(0xFFF59E0B)
+                                    : Colors.transparent,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text("💼", style: TextStyle(fontSize: 13)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Trabalho",
+                                  style: TextStyle(
+                                    color: timerProvider.modoContexto == "trabalho"
+                                        ? Colors.white
+                                        : Colors.white54,
+                                    fontSize: 12,
+                                    fontWeight: timerProvider.modoContexto == "trabalho"
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
                 // Input de texto com autocomplete
                 AutocompleteInput(
                   controller: _tarefaController,
@@ -500,6 +606,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               timeStr: timerProvider.obterTempoFormatado(),
               modoDescanso: timerProvider.modoDescanso,
               pausado: timerProvider.pausado,
+              onTapTempo: !timerProvider.rodando
+                  ? () => TimePickerPopup.mostrar(context, timerProvider)
+                  : null,
             ),
           ),
           const SizedBox(height: 14),

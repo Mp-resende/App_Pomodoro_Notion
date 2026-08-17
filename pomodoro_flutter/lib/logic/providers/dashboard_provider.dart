@@ -11,13 +11,14 @@ class DashboardProvider with ChangeNotifier {
   // Filtros ativos
   DateTimeRange? _periodoSelecionado;
   String? _materiaSelecionada;
+  String _contextoFiltro = "todos"; // "todos", "estudos", "trabalho"
 
   // Cache da lista filtrada para evitar recomputação em cada getter
   List<dynamic>? _sessoesFiltradaCache;
   String? _sessoesCacheKey;
 
   String get _filtroCacheKey =>
-      '${_materiaSelecionada}|${_periodoSelecionado?.start?.millisecondsSinceEpoch}|${_periodoSelecionado?.end?.millisecondsSinceEpoch}|${sessoes.length}';
+      '${_contextoFiltro}|${_materiaSelecionada}|${_periodoSelecionado?.start?.millisecondsSinceEpoch}|${_periodoSelecionado?.end?.millisecondsSinceEpoch}|${sessoes.length}';
 
   void _invalidarCache() => _sessoesFiltradaCache = null;
   
@@ -36,6 +37,14 @@ class DashboardProvider with ChangeNotifier {
   // Getters e Setters de Filtros
   String? get materiaSelecionada => _materiaSelecionada;
   DateTimeRange? get periodoSelecionado => _periodoSelecionado;
+  String get contextoFiltro => _contextoFiltro;
+
+  void filtrarPorContexto(String contexto) {
+    if (_contextoFiltro == contexto) return;
+    _contextoFiltro = contexto;
+    _invalidarCache();
+    notifyListeners();
+  }
 
   void filtrarPorMateria(String? materia) {
     _materiaSelecionada = materia;
@@ -52,11 +61,12 @@ class DashboardProvider with ChangeNotifier {
   void limparFiltros() {
     _materiaSelecionada = null;
     _periodoSelecionado = null;
+    _contextoFiltro = "todos";
     _invalidarCache();
     notifyListeners();
   }
 
-  bool get temFiltrosAtivos => _materiaSelecionada != null || _periodoSelecionado != null;
+  bool get temFiltrosAtivos => _materiaSelecionada != null || _periodoSelecionado != null || _contextoFiltro != "todos";
 
   // Carrega os dados persistidos no cache local para exibição instantânea
   Future<void> carregarCache() async {
@@ -138,6 +148,14 @@ class DashboardProvider with ChangeNotifier {
 
     for (final s in sessoes) {
       if (s is! Map<String, dynamic>) continue;
+
+      if (_contextoFiltro != "todos") {
+        final isTrab = timerProvider.isMateriaTrabalho(s['materia_nome']?.toString(), s['materia_area']?.toString()) ||
+            timerProvider.isMateriaTrabalho(s['tecnologia']?.toString());
+        if (_contextoFiltro == "trabalho" && !isTrab) continue;
+        if (_contextoFiltro == "estudos" && isTrab) continue;
+      }
+
       final inicioStr = s['inicio'] as String?;
       final fimStr = s['fim'] as String?;
       final tech = s['tecnologia'] as String? ?? 'Outros';
@@ -229,6 +247,12 @@ class DashboardProvider with ChangeNotifier {
 
   List<dynamic> _computeSessoesFiltradas() {
     return sessoes.where((s) {
+      if (_contextoFiltro != "todos") {
+        final isTrab = timerProvider.isMateriaTrabalho(s['materia_nome']?.toString(), s['materia_area']?.toString()) ||
+            timerProvider.isMateriaTrabalho(s['tecnologia']?.toString());
+        if (_contextoFiltro == "trabalho" && !isTrab) return false;
+        if (_contextoFiltro == "estudos" && isTrab) return false;
+      }
       if (_materiaSelecionada != null && s['materia_nome'] != _materiaSelecionada) {
         return false;
       }
@@ -412,6 +436,12 @@ class DashboardProvider with ChangeNotifier {
 
     for (final m in materias) {
       final nome = m['nome'] as String? ?? 'Sem Nome';
+      final area = m['area'] as String?;
+      if (_contextoFiltro != "todos") {
+        final isTrab = timerProvider.isMateriaTrabalho(nome, area);
+        if (_contextoFiltro == "trabalho" && !isTrab) continue;
+        if (_contextoFiltro == "estudos" && isTrab) continue;
+      }
       if (_materiaSelecionada != null && nome != _materiaSelecionada) {
         continue;
       }

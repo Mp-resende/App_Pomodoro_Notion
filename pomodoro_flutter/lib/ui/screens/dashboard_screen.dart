@@ -249,7 +249,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         children: [
                           _buildSectionTitle('Foco Durante a Semana (Segunda a Domingo)'),
                           WeeklyFocusTimeline(
-                            sessoes: dashboard.dadosDashboard['sessoes'] ?? [],
+                            sessoes: dashboard.sessoesFiltradas,
                             theme: theme,
                           ),
                            const SizedBox(height: 24),
@@ -1077,6 +1077,23 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             ],
           ),
           const SizedBox(height: 10),
+          // Seletor de Contexto (Todos | Estudos | Trabalho)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: Colors.white.withOpacity(0.06)),
+            ),
+            child: Row(
+              children: [
+                _buildContextFilterTab("todos", "🌐 Todos", dashboard),
+                _buildContextFilterTab("estudos", "📚 Estudos", dashboard),
+                _buildContextFilterTab("trabalho", "💼 Trabalho", dashboard),
+              ],
+            ),
+          ),
           Row(
             children: [
               // Dropdown de Matérias
@@ -1145,6 +1162,45 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildContextFilterTab(String key, String label, DashboardProvider dashboard) {
+    final selected = dashboard.contextoFiltro == key;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => dashboard.filtrarPorContexto(key),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? (key == "trabalho"
+                    ? const Color(0xFFF59E0B).withOpacity(0.25)
+                    : (key == "estudos" ? theme.primaryAccent.withOpacity(0.25) : Colors.white.withOpacity(0.12)))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(
+              color: selected
+                  ? (key == "trabalho"
+                      ? const Color(0xFFF59E0B)
+                      : (key == "estudos" ? theme.primaryAccent : Colors.white24))
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white54,
+                fontSize: 11.5,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

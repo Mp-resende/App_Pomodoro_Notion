@@ -30,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _notifSistema;
   late TextEditingController _reportsPageIdController;
   late List<String> _categorias;
+  late TextEditingController _novaMateriaTrabalhoController;
+  late List<String> _materiasTrabalho;
   bool _iniciado = false;
   bool _buscandoUpdate = false;
   bool _gerandoRelatorio = false;
@@ -43,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _descansoLongoController = TextEditingController();
     _cicloLBreakController = TextEditingController();
     _novaCatController = TextEditingController();
+    _novaMateriaTrabalhoController = TextEditingController();
     _apiKeyController = TextEditingController();
     _dbIdController = TextEditingController();
     _materiasDbIdController = TextEditingController();
@@ -52,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _vibrarAlarme = true;
     _notifSistema = true;
     _categorias = [];
+    _materiasTrabalho = [];
   }
 
   // didChangeDependencies é o local correto para acessar Provider/InheritedWidget
@@ -78,6 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _vibrarAlarme = timerProvider.config.vibrarAoFinalizar;
     _notifSistema = timerProvider.config.notificacoesSistema;
     _categorias = List<String>.from(timerProvider.config.categorias);
+    _materiasTrabalho = List<String>.from(timerProvider.materiasTrabalho);
   }
 
   @override
@@ -85,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _reportsPageIdController.dispose();
     _materiasDbIdController.dispose();
     _estudosDiariosDbIdController.dispose();
+    _novaMateriaTrabalhoController.dispose();
     super.dispose();
   }
 
@@ -123,6 +129,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  // Adiciona matéria na lista local temporária
+  void _adicionarMateriaTrabalho() {
+    final nova = _novaMateriaTrabalhoController.text.trim();
+    if (nova.isEmpty) return;
+    if (_materiasTrabalho.contains(nova)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("A matéria '$nova' já existe!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _materiasTrabalho.add(nova);
+      _novaMateriaTrabalhoController.clear();
+    });
+  }
+
+  // Remove matéria da lista local temporária
+  void _removerMateriaTrabalho(int index) {
+    if (_materiasTrabalho.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("O aplicativo precisa de pelo menos uma matéria ativa!"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _materiasTrabalho.removeAt(index);
+    });
+  }
+
   // Grava as novas configurações no Provider e persiste no JSON
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
@@ -148,6 +189,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       materiasDbId: _materiasDbIdController.text,
       estudosDiariosDbId: _estudosDiariosDbIdController.text,
     );
+
+    // Salva matérias de trabalho
+    await timerProvider.salvarMateriasTrabalho(_materiasTrabalho);
 
     // Grava e recarrega os tempos de sessão no cronômetro
     await timerProvider.atualizarConfig(novaConfig);
@@ -297,6 +341,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: Text(cat, style: const TextStyle(color: Colors.white, fontSize: 11.5)),
                     deleteIcon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
                     onDeleted: () => _removerCategoria(index),
+                  );
+                }),
+              ),
+
+              const SizedBox(height: 24),
+              // --- SEÇÃO: MATÉRIAS DE TRABALHO ---
+              _buildSectionTitle("💼 Matérias de Trabalho"),
+              const SizedBox(height: 4),
+              Text(
+                "Matérias cadastradas aqui serão filtradas quando o Modo Trabalho 💼 estiver ativado.",
+                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextFormField(
+                      controller: _novaMateriaTrabalhoController,
+                      label: "Nome da matéria de trabalho (ex: Implanta)...",
+                      validator: null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _adicionarMateriaTrabalho,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF59E0B),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(_materiasTrabalho.length, (index) {
+                  final mat = _materiasTrabalho[index];
+                  return Chip(
+                    backgroundColor: const Color(0xFFF59E0B).withOpacity(0.12),
+                    side: BorderSide(color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                    avatar: const Text("💼", style: TextStyle(fontSize: 12)),
+                    label: Text(mat, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold)),
+                    deleteIcon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
+                    onDeleted: () => _removerMateriaTrabalho(index),
                   );
                 }),
               ),
