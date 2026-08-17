@@ -446,6 +446,9 @@ class DashboardProvider with ChangeNotifier {
         continue;
       }
       final metaSemanal = (m['meta_semanal'] as num?)?.toDouble() ?? 0.0;
+      if (metaSemanal <= 0) {
+        continue; // Não exibe matérias que não possuem meta cadastrada
+      }
 
       double minutosFocados = 0;
       for (final s in sessoes) { // Analisa as sessões completas para calcular progresso da meta

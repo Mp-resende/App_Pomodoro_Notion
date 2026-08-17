@@ -715,8 +715,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       metas = metas.where((m) => m['meta_horas'] > 0 && m['realizado_horas'] >= m['meta_horas']).toList();
     } else if (_metasFiltro == "Em Andamento") {
       metas = metas.where((m) => m['meta_horas'] > 0 && m['realizado_horas'] < m['meta_horas']).toList();
-    } else if (_metasFiltro == "Sem Meta") {
-      metas = metas.where((m) => m['meta_horas'] == 0).toList();
     }
 
     // 2. Aplicação de Ordenações
@@ -749,12 +747,12 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   Icon(Icons.filter_list_rounded, size: 14, color: theme.textSecondary.withOpacity(0.6)),
                   const SizedBox(width: 6),
                   DropdownButton<String>(
-                    value: _metasFiltro,
+                    value: _metasFiltro == "Sem Meta" ? "Todas" : _metasFiltro,
                     dropdownColor: theme.surface,
                     style: TextStyle(color: theme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
                     underline: const SizedBox(),
                     icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.6), size: 16),
-                    items: ["Todas", "Concluídas", "Em Andamento", "Sem Meta"].map((f) {
+                    items: ["Todas", "Concluídas", "Em Andamento"].map((f) {
                       return DropdownMenuItem(value: f, child: Text(f));
                     }).toList(),
                     onChanged: (val) {
@@ -773,7 +771,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     style: TextStyle(color: theme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
                     underline: const SizedBox(),
                     icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.6), size: 16),
-                    items: ["Nome", "Progresso (%)", "Realizado (h)", "Meta (h)"].map((o) {
+                    items: ["Progresso (%)", "Realizado (h)", "Meta (h)", "Nome"].map((o) {
                       return DropdownMenuItem(value: o, child: Text(o));
                     }).toList(),
                     onChanged: (val) {
@@ -818,12 +816,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: theme.textPrimary),
                         ),
                         Text(
-                          metaH > 0
-                              ? '${realH.toStringAsFixed(1)}h de ${metaH.toStringAsFixed(1)}h'
-                              : '${realH.toStringAsFixed(1)}h (Sem Meta)',
+                          '${realH.toStringAsFixed(1)}h de ${metaH.toStringAsFixed(1)}h (${(pct * 100).toStringAsFixed(0)}%)',
                           style: TextStyle(
                             fontSize: 12,
-                            color: metaH > 0 && realH >= metaH ? Colors.greenAccent : theme.textSecondary.withOpacity(0.6),
+                            fontWeight: FontWeight.w600,
+                            color: realH >= metaH ? Colors.greenAccent : theme.textSecondary.withOpacity(0.7),
                           ),
                         ),
                       ],
@@ -832,7 +829,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
-                        value: metaH > 0 ? (pct > 1.0 ? 1.0 : pct) : 1.0,
+                        value: (pct > 1.0 ? 1.0 : (pct < 0.0 ? 0.0 : pct)),
                         minHeight: 8,
                         backgroundColor: theme.textSecondary.withOpacity(0.05),
                         valueColor: AlwaysStoppedAnimation<Color>(corMateria),
