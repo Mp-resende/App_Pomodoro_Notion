@@ -29,7 +29,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _vibrarAlarme;
   late bool _notifSistema;
   late TextEditingController _reportsPageIdController;
-  late List<String> _categorias;
   late TextEditingController _novaMateriaTrabalhoController;
   late List<String> _materiasTrabalho;
   bool _iniciado = false;
@@ -44,7 +43,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _descansoCurtoController = TextEditingController();
     _descansoLongoController = TextEditingController();
     _cicloLBreakController = TextEditingController();
-    _novaCatController = TextEditingController();
     _novaMateriaTrabalhoController = TextEditingController();
     _apiKeyController = TextEditingController();
     _dbIdController = TextEditingController();
@@ -54,7 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _somAlarme = true;
     _vibrarAlarme = true;
     _notifSistema = true;
-    _categorias = [];
     _materiasTrabalho = [];
   }
 
@@ -81,7 +78,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _somAlarme = timerProvider.config.somAlarmeAtivado;
     _vibrarAlarme = timerProvider.config.vibrarAoFinalizar;
     _notifSistema = timerProvider.config.notificacoesSistema;
-    _categorias = List<String>.from(timerProvider.config.categorias);
     _materiasTrabalho = List<String>.from(timerProvider.materiasTrabalho);
   }
 
@@ -92,41 +88,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _estudosDiariosDbIdController.dispose();
     _novaMateriaTrabalhoController.dispose();
     super.dispose();
-  }
-
-  // Adiciona categoria na lista local temporária
-  void _adicionarCategoria() {
-    final nova = _novaCatController.text.trim();
-    if (nova.isEmpty) return;
-    if (_categorias.contains(nova)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("A categoria '$nova' já existe!"),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    setState(() {
-      _categorias.add(nova);
-      _novaCatController.clear();
-    });
-  }
-
-  // Remove categoria da lista local temporária
-  void _removerCategoria(int index) {
-    if (_categorias.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("O aplicativo precisa de pelo menos uma categoria ativa!"),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    setState(() {
-      _categorias.removeAt(index);
-    });
   }
 
   // Adiciona matéria na lista local temporária
@@ -178,7 +139,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       somAlarmeAtivado: _somAlarme,
       vibrarAoFinalizar: _vibrarAlarme,
       notificacoesSistema: _notifSistema,
-      categorias: _categorias,
     );
 
     // Persiste as chaves do Notion
@@ -300,49 +260,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 activeColor: Colors.cyanAccent,
                 contentPadding: EdgeInsets.zero,
                 onChanged: (val) => setState(() => _notifSistema = val),
-              ),
-
-              const SizedBox(height: 24),
-              // --- SEÇÃO: CATEGORIAS ---
-              _buildSectionTitle("📂 Gerenciar Categorias"),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextFormField(
-                      controller: _novaCatController,
-                      label: "Nova tecnologia...",
-                      validator: null,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _adicionarCategoria,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.cyanAccent,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: const Icon(Icons.add_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Exibe chips das categorias com botão X para apagar
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(_categorias.length, (index) {
-                  final cat = _categorias[index];
-                  return Chip(
-                    backgroundColor: Colors.white.withOpacity(0.035),
-                    side: BorderSide(color: Colors.white.withOpacity(0.07)),
-                    label: Text(cat, style: const TextStyle(color: Colors.white, fontSize: 11.5)),
-                    deleteIcon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
-                    onDeleted: () => _removerCategoria(index),
-                  );
-                }),
               ),
 
               const SizedBox(height: 24),

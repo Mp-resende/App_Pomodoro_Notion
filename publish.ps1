@@ -118,6 +118,8 @@ if ([string]::IsNullOrWhiteSpace($commitMsg)) {
     $commitMsg = "release: v$versao"
 }
 
+git config core.fscache true
+git config gc.auto 0
 git add .
 git commit -m $commitMsg
 Write-Host "Enviando dados para o GitHub (push)..." -ForegroundColor Yellow

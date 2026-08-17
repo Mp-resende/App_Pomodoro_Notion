@@ -767,12 +767,22 @@ class NotionService {
       final inicioStr = (props['Início'] as Map<String, dynamic>?)?['date']?['start'] as String?;
       final fimStr = (props['Fim'] as Map<String, dynamic>?)?['date']?['start'] as String?;
       final tech = (props['Tecnologia'] as Map<String, dynamic>?)?['select']?['name'] as String? ?? 'Outros';
+
+      String tarefa = '';
+      for (final prop in props.values) {
+        if (prop is Map<String, dynamic> && prop['type'] == 'title') {
+          final titleArray = prop['title'] as List<dynamic>? ?? [];
+          tarefa = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+          break;
+        }
+      }
       
       if (inicioStr != null && fimStr != null) {
         sessoes.add({
           "inicio": inicioStr,
           "fim": fimStr,
           "tecnologia": tech,
+          "tarefa": tarefa,
         });
       }
     }

@@ -433,10 +433,12 @@ class TimerProvider with ChangeNotifier {
 
   // --- Controles de Operação do Cronômetro ---
 
-  void iniciar(String tarefa, String categoria) {
+  void iniciar(String tarefa, [String? categoria]) {
     if (rodando) return;
     tarefaAtual = tarefa.trim();
-    categoriaAtual = categoria;
+    categoriaAtual = (categoria != null && categoria.trim().isNotEmpty)
+        ? categoria.trim()
+        : (modoContexto == "trabalho" ? "Trabalho" : "Estudos");
 
     if (tarefaAtual.isEmpty) {
       labelStatus = "Digite uma tarefa!";
@@ -691,6 +693,8 @@ class TimerProvider with ChangeNotifier {
       "inicio": inicioSessao.toIso8601String(),
       "fim": fimRegistrado.toIso8601String(),
       "tecnologia": categoriaAtual,
+      "tarefa": tarefaAtual,
+      "modo": modoContexto,
     });
     _salvarContadorHoje();
 

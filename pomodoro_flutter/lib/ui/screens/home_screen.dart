@@ -29,7 +29,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, WindowListener {
   final TextEditingController _tarefaController = TextEditingController();
   final FocusNode _tarefaFocusNode = FocusNode();
-  String _categoriaSelecionada = "Python";
   bool _isMiniPlayer = false;
 
   AppThemeData get theme => Provider.of<TimerProvider>(context, listen: false).theme;
@@ -78,13 +77,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           } catch (_) {}
         }
       };
-
-      // Carrega a primeira categoria cadastrada como valor padrão
-      if (timerProvider.config.categorias.isNotEmpty) {
-        setState(() {
-          _categoriaSelecionada = timerProvider.config.categorias.first;
-        });
-      }
     });
   }
 
@@ -132,14 +124,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     final timerProvider = Provider.of<TimerProvider>(context);
     final theme = timerProvider.theme;
 
-    // Valida se a categoria selecionada localmente ainda existe no cadastro de configurações
-    final categorias = timerProvider.config.categorias;
-    if (!categorias.contains(_categoriaSelecionada) && categorias.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _categoriaSelecionada = categorias.first);
-      });
-    }
-
     return Scaffold(
       backgroundColor: theme.backgroundStart,
       body: Container(
@@ -161,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
             },
             child: _isMiniPlayer
                 ? _buildMiniPlayer(timerProvider)
-                : _buildFullPlayer(timerProvider, categorias),
+                : _buildFullPlayer(timerProvider),
           ),
         ),
       ),
@@ -285,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   }
 
   // Layout 2: Player Completo Original
-  Widget _buildFullPlayer(TimerProvider timerProvider, List<String> categorias) {
+  Widget _buildFullPlayer(TimerProvider timerProvider) {
     return Padding(
       key: const ValueKey("full_player"),
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -529,52 +513,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                   enabled: !timerProvider.rodando,
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  "Tecnologia / Categoria:",
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Dropdown de categorias de tecnologia
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.035),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: theme.cardBorder.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _categoriaSelecionada,
-                      dropdownColor: theme.surface,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      icon: Icon(Icons.arrow_drop_down_rounded, color: theme.textSecondary.withOpacity(0.5)),
-                      isExpanded: true,
-                      items: categorias.map((cat) {
-                        return DropdownMenuItem<String>(
-                          value: cat,
-                          child: Text(cat),
-                        );
-                      }).toList(),
-                      onChanged: timerProvider.rodando
-                          ? null // Bloqueia edições se estiver rodando
-                          : (val) {
-                              if (val != null) {
-                                setState(() {
-                                  _categoriaSelecionada = val;
-                                });
-                              }
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 // Relação de tabelas Notion (se configurada e online)
                 const RelationSelector(),
               ],
@@ -651,7 +589,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                       ? null
                       : () {
                           HapticFeedback.mediumImpact();
-                          timerProvider.iniciar(_tarefaController.text, _categoriaSelecionada);
+                          timerProvider.iniciar(_tarefaController.text);
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primaryAccent,
@@ -770,6 +708,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           FocusTimeline(
             sessoes: timerProvider.sessoesHoje,
             theme: theme,
+            modoContextoInicial: timerProvider.modoContexto,
+            isMateriaTrabalho: timerProvider.isMateriaTrabalho,
           ),
 
           const SizedBox(height: 24),

@@ -119,10 +119,12 @@ class CompletionPopup extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          categoria,
+                          timerProvider.modoContexto == "trabalho" ? "💼 Trabalho" : "📚 Estudos",
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: 10,
+                            color: timerProvider.modoContexto == "trabalho"
+                                ? const Color(0xFFF59E0B)
+                                : Colors.cyanAccent,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
