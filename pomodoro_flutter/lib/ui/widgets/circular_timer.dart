@@ -84,14 +84,14 @@ class CircularTimer extends StatelessWidget {
                           opacity: pausado ? 0.6 : 1.0,
                           duration: const Duration(milliseconds: 250),
                           child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 280),
+                            duration: const Duration(milliseconds: 150),
                             transitionBuilder: (child, animation) {
-                              return SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(0.0, 0.25),
-                                  end: Offset.zero,
-                                ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                                child: FadeTransition(opacity: animation, child: child),
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeInOut,
+                                ),
+                                child: child,
                               );
                             },
                             child: Text(
@@ -100,9 +100,9 @@ class CircularTimer extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 52,
                                 fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
                                 color: corDestaque,
                                 letterSpacing: 2,
+                                fontFeatures: const [FontFeature.tabularFigures()],
                                 shadows: [
                                   Shadow(
                                     color: corDestaque.withOpacity(0.35),

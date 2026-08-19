@@ -21,8 +21,9 @@ class _FocusScreenState extends State<FocusScreen> {
     // Impede o dispositivo de dormir ou a tela de apagar
     WakelockPlus.enable();
 
-    // Ativa o Modo Fullscreen Imersivo
+    // Ativa o Modo Fullscreen Imersivo sem bordas
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      windowManager.setHasShadow(false);
       windowManager.setFullScreen(true);
     } else if (Platform.isAndroid || Platform.isIOS) {
       // Oculta a barra de status e a barra de navegação virtual
@@ -38,6 +39,7 @@ class _FocusScreenState extends State<FocusScreen> {
     // Restaura as barras nativas da UI normal
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       windowManager.setFullScreen(false);
+      windowManager.setHasShadow(true);
     } else if (Platform.isAndroid || Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
@@ -49,8 +51,12 @@ class _FocusScreenState extends State<FocusScreen> {
     // Scaffold com fundo 100% preto para painéis OLED
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
+      body: SizedBox.expand(
+        child: Container(
+          color: Colors.black,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
           Center(
             child: Consumer<TimerProvider>(
               builder: (context, timer, child) {
@@ -125,6 +131,8 @@ class _FocusScreenState extends State<FocusScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }

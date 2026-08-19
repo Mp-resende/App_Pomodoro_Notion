@@ -3,11 +3,16 @@
 
 $ErrorActionPreference = "Stop"
 
+# Garante o diretório raiz absoluto do script
+$rootDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+Set-Location $rootDir
+[System.Environment]::CurrentDirectory = $rootDir
+
 # Caminhos locais
 $projetoNome = "pomodoro_flutter"
-$pubspecPath = "$projetoNome\pubspec.yaml"
-$updateServicePath = "$projetoNome\lib\core\services\update_service.dart"
-$versionJsonPath = "version.json"
+$pubspecPath = "$rootDir\$projetoNome\pubspec.yaml"
+$updateServicePath = "$rootDir\$projetoNome\lib\core\services\update_service.dart"
+$versionJsonPath = "$rootDir\version.json"
 $tempPath = "C:\Users\Usuario\pomodoro_flutter_temp"
 
 Write-Host "========== INICIANDO PIPELINE DE DEPLOY AUTOMATIZADO ==========" -ForegroundColor Cyan
@@ -43,6 +48,7 @@ $jsonContent = ConvertTo-Json $jsonObj -Depth 4
 
 # 4. Executa os testes de unidade locais antes de compilar
 Write-Host "Executando testes unitarios..." -ForegroundColor Yellow
+Remove-Item -Path "$projetoNome\build\unit_test_assets" -Recurse -Force -ErrorAction SilentlyContinue
 cd $projetoNome
 & C:\Users\Usuario\flutter\bin\flutter.bat test
 cd ..
@@ -72,44 +78,81 @@ cd $tempPath
 & C:\Users\Usuario\flutter\bin\flutter.bat build windows
 cd $PSScriptRoot
 
+# 0. Garante o backup das configuracoes locais existentes no computador
+$appDataDir = "$env:APPDATA\PomodoroNotion"
+if (!(Test-Path $appDataDir)) {
+    New-Item -ItemType Directory -Path $appDataDir -Force | Out-Null
+}
+
+$localConfigContent = $null
+$candidatosConfig = @(
+    "$rootDir\pomodoro_flutter\build\windows\x64\runner\Release\config.json",
+    "$rootDir\releases\windows\config.json",
+    "$appDataDir\config.json"
+)
+
+foreach ($caminho in $candidatosConfig) {
+    if (Test-Path $caminho) {
+        try {
+            $conteudo = Get-Content $caminho -Raw
+            if ($conteudo -and ($conteudo | ConvertFrom-Json).notion_api_key) {
+                $localConfigContent = $conteudo
+                # Salva copia mestre no AppData permanente
+                [System.IO.File]::WriteAllText("$appDataDir\config.json", $conteudo, [System.Text.Encoding]::UTF8)
+                break
+            } elseif ($conteudo -and !$localConfigContent) {
+                $localConfigContent = $conteudo
+            }
+        } catch {}
+    }
+}
+
 # 7. Fecha processos antigos do app para destravar arquivos de escrita no Windows
 Write-Host "Fechando processos antigos do aplicativo..." -ForegroundColor Yellow
 Stop-Process -Name "pomodoro_notion" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# 8. Copia os binarios finais compilados para a pasta de releases oficiais e pasta de build local
-Write-Host "Copiando artefatos finais para a pasta de releases oficiais..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Path "releases\windows" -Force | Out-Null
+# 8. Cria pacote ZIP limpo para distribuicao publica (SEM dados pessoais) via pasta de staging
+Write-Host "Criando arquivo ZIP limpo para distribuicao do Windows..." -ForegroundColor Yellow
+$zipStagingPath = "$tempPath\_zip_staging"
+if (Test-Path $zipStagingPath) {
+    Remove-Item -Path $zipStagingPath -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Path $zipStagingPath -Force | Out-Null
 
-Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "releases\windows\" -Recurse -Force
-Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*.apk" -Destination "releases\" -Force
+Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "$zipStagingPath\" -Recurse -Force
+Remove-Item -Path "$zipStagingPath\*.json" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$zipStagingPath\*.log" -Force -ErrorAction SilentlyContinue
 
-# Remove arquivos locais privados/temporários para que não sejam incluídos no ZIP ou rastreados
-Remove-Item -Path "releases\windows\config.json" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "releases\windows\dashboard_cache.json" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "releases\windows\pomodoros_contador.json" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "releases\windows\sessoes_offline.json" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "releases\windows\historico_tarefas.json" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "releases\windows\pomodoro.log" -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path "$rootDir\releases" -Force | Out-Null
+Remove-Item -Path "$rootDir\releases\pomodoro_notion_windows.zip" -Force -ErrorAction SilentlyContinue
+Compress-Archive -Path "$zipStagingPath\*" -DestinationPath "$rootDir\releases\pomodoro_notion_windows.zip" -Force
 
-Write-Host "Criando arquivo ZIP para distribuicao do Windows..." -ForegroundColor Yellow
-Remove-Item -Path "releases\pomodoro_notion_windows.zip" -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path "releases\windows\*" -DestinationPath "releases\pomodoro_notion_windows.zip" -Force
+# 9. Copia os binarios finais compilados para a pasta de releases oficiais e pasta de build local
+Write-Host "Copiando artefatos finais para releases\windows e build local..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path "$rootDir\releases\windows" -Force | Out-Null
+Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "$rootDir\releases\windows\" -Recurse -Force
+Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*.apk" -Destination "$rootDir\releases\" -Force
 
-Write-Host "Sincronizando pasta de build local para testes locais..." -ForegroundColor Yellow
-# Garante as pastas locais
-New-Item -ItemType Directory -Path "pomodoro_flutter\build\windows\x64\runner\Release" -Force | Out-Null
-New-Item -ItemType Directory -Path "pomodoro_flutter\build\app\outputs\flutter-apk" -Force | Out-Null
+# Garante as pastas locais de build
+New-Item -ItemType Directory -Path "$rootDir\pomodoro_flutter\build\windows\x64\runner\Release" -Force | Out-Null
+New-Item -ItemType Directory -Path "$rootDir\pomodoro_flutter\build\app\outputs\flutter-apk" -Force | Out-Null
+Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "$rootDir\pomodoro_flutter\build\windows\x64\runner\Release\" -Recurse -Force
+Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*" -Destination "$rootDir\pomodoro_flutter\build\app\outputs\flutter-apk\" -Recurse -Force
 
-# Copia de volta
-Copy-Item -Path "$tempPath\build\windows\x64\runner\Release\*" -Destination "pomodoro_flutter\build\windows\x64\runner\Release\" -Recurse -Force
-Copy-Item -Path "$tempPath\build\app\outputs\flutter-apk\*" -Destination "pomodoro_flutter\build\app\outputs\flutter-apk\" -Recurse -Force
+# 10. Restaura e preserva o config.json local nas pastas do executavel
+if ($localConfigContent) {
+    Write-Host "Restaurando configuracoes locais nas pastas do executavel..." -ForegroundColor Green
+    [System.IO.File]::WriteAllText("$rootDir\releases\windows\config.json", $localConfigContent, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText("$rootDir\pomodoro_flutter\build\windows\x64\runner\Release\config.json", $localConfigContent, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText("$appDataDir\config.json", $localConfigContent, [System.Text.Encoding]::UTF8)
+}
 
-# 9. Limpa a pasta temporaria de build
+# 11. Limpa a pasta temporaria de build
 Write-Host "Removendo arquivos temporarios..." -ForegroundColor Yellow
 Remove-Item -Path $tempPath -Recurse -Force -ErrorAction SilentlyContinue
 
-# 10. Executa o deploy Git e Push para o GitHub
+# 12. Executa o deploy Git e Push para o GitHub
 Write-Host "Iniciando publicacao no GitHub..." -ForegroundColor Cyan
 
 # Pergunta pela mensagem de commit

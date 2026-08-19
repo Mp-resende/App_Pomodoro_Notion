@@ -633,34 +633,104 @@ class NotionService {
     return allResults;
   }
 
-  // Cria uma sub-página de relatório semanal no Notion sob a paginaPaiId fornecida
+  // Cria uma sub-página de relatório semanal no Notion com gráficos e separação de contexto
   Future<bool> criarRelatorioSemanal({
     required String paginaPaiId,
     required DateTime inicioSemana,
     required DateTime fimSemana,
+    bool Function(String nome, String? area)? isMateriaTrabalho,
   }) async {
     final pageIdLimpo = extrairIdNotion(paginaPaiId);
-    if (!connected || pageIdLimpo.isEmpty) return false;
+    if (!connected) {
+      throw Exception("Aplicativo sem conexão ativa com o Notion.");
+    }
+    if (pageIdLimpo.isEmpty) {
+      throw Exception("O ID ou link da Página Mãe de Relatórios está vazio.");
+    }
 
     final sessoes = await _querySessoesPeriodo(inicioSemana, fimSemana);
-    if (sessoes.isEmpty) return false;
+    if (sessoes.isEmpty) {
+      throw Exception("Nenhuma sessão foi encontrada no Notion entre ${inicioSemana.day}/${inicioSemana.month} e ${fimSemana.day}/${fimSemana.month}.");
+    }
 
-    int totalMinutos = 0;
-    final Map<String, int> minPorCategoria = {};
-    final Set<String> tarefas = {};
-    final Set<String> diasAtivos = {};
+    // Consulta tabelas relacionais caso configuradas para obter nomes exatos de matérias
+    final Map<String, Map<String, dynamic>> materiasMap = {};
+    final Map<String, Map<String, dynamic>> estudosDiariosMap = {};
+
+    if (materiasDatabaseId != null && materiasDatabaseId!.isNotEmpty) {
+      try {
+        final mats = await _queryDatabase(materiasDatabaseId!);
+        for (final m in mats) {
+          final props = m['properties'] as Map<String, dynamic>? ?? {};
+          String nome = '';
+          for (final prop in props.values) {
+            if (prop is Map<String, dynamic> && prop['type'] == 'title') {
+              final titleArray = prop['title'] as List<dynamic>? ?? [];
+              nome = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+              break;
+            }
+          }
+          final areaProp = props['Área'] as Map<String, dynamic>? ?? props['Area'] as Map<String, dynamic>?;
+          final areaSelect = areaProp != null ? areaProp['select'] as Map<String, dynamic>? : null;
+          final area = areaSelect != null ? areaSelect['name']?.toString() : null;
+          final metaProp = props['Meta Semanal'] as Map<String, dynamic>? ?? props['Meta'] as Map<String, dynamic>?;
+          final meta = metaProp != null ? (metaProp['number'] as num?)?.toDouble() : null;
+          materiasMap[m['id']] = {'nome': nome, 'area': area, 'meta_semanal': meta};
+        }
+      } catch (_) {}
+    }
+
+    if (estudosDiariosDatabaseId != null && estudosDiariosDatabaseId!.isNotEmpty) {
+      try {
+        final tops = await _queryDatabase(estudosDiariosDatabaseId!);
+        for (final t in tops) {
+          final props = t['properties'] as Map<String, dynamic>? ?? {};
+          String nome = '';
+          for (final prop in props.values) {
+            if (prop is Map<String, dynamic> && prop['type'] == 'title') {
+              final titleArray = prop['title'] as List<dynamic>? ?? [];
+              nome = titleArray.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
+              break;
+            }
+          }
+          final relProp = props['Banco de Dados: Matérias'] as Map<String, dynamic>?;
+          String? matId;
+          if (relProp != null && relProp['type'] == 'relation') {
+            final relArray = relProp['relation'] as List<dynamic>? ?? [];
+            if (relArray.isNotEmpty) matId = relArray.first['id']?.toString();
+          }
+          estudosDiariosMap[t['id']] = {'nome': nome, 'materia_id': matId};
+        }
+      } catch (_) {}
+    }
+
+    // Métricas gerais e contextuais
+    int totalMinutosGeral = 0;
+    int totalMinutosEstudos = 0;
+    int totalMinutosTrabalho = 0;
+    int totalSessoesEstudos = 0;
+    int totalSessoesTrabalho = 0;
+
+    final Map<String, int> minPorMateriaEstudos = {};
+    final Map<String, int> minPorProjetoTrabalho = {};
+    final Set<String> tarefasEstudos = {};
+    final Set<String> tarefasTrabalho = {};
+    final Set<String> diasAtivosGeral = {};
+    final Set<String> diasAtivosEstudos = {};
+    final Set<String> diasAtivosTrabalho = {};
+
+    // 7 dias da semana: Seg (0) a Dom (6)
+    final List<double> horasEstudosPorDia = List.filled(7, 0.0);
+    final List<double> horasTrabalhoPorDia = List.filled(7, 0.0);
 
     for (final s in sessoes) {
       final props = s['properties'] as Map<String, dynamic>? ?? {};
 
       String titulo = '';
       for (final prop in props.values) {
-        final p = prop as Map<String, dynamic>;
-        if (p['type'] == 'title') {
-          titulo = (p['title'] as List<dynamic>? ?? [])
-              .map((e) => e['plain_text']?.toString() ?? '')
-              .join('')
-              .trim();
+        if (prop is Map<String, dynamic> && prop['type'] == 'title') {
+          final p = prop['title'] as List<dynamic>? ?? [];
+          titulo = p.map((e) => e['plain_text']?.toString() ?? '').join('').trim();
           break;
         }
       }
@@ -669,23 +739,77 @@ class NotionService {
       final fimStr = (props['Fim'] as Map<String, dynamic>?)?['date']?['start'] as String?;
 
       int mins = 0;
+      DateTime? ini;
       if (inicioStr != null && fimStr != null) {
-        final ini = DateTime.tryParse(inicioStr);
-        final fi = DateTime.tryParse(fimStr);
+        ini = DateTime.tryParse(inicioStr)?.toLocal();
+        final fi = DateTime.tryParse(fimStr)?.toLocal();
         if (ini != null && fi != null && fi.isAfter(ini)) {
           mins = fi.difference(ini).inMinutes;
-          totalMinutos += mins;
-          final local = ini.toLocal();
-          diasAtivos.add('${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}');
         }
       }
 
-      final categoria =
-          (props['Tecnologia'] as Map<String, dynamic>?)?['select']?['name'] as String? ?? 'Outro';
-      minPorCategoria[categoria] = (minPorCategoria[categoria] ?? 0) + mins;
+      if (mins <= 0 || ini == null) continue;
 
-      if (titulo.isNotEmpty && !titulo.startsWith('[Encerrado]') && !titulo.startsWith('📊')) {
-        tarefas.add(titulo);
+      final tech = (props['Tecnologia'] as Map<String, dynamic>?)?['select']?['name'] as String? ?? '';
+
+      // Tenta resolver matéria pela relação
+      String materiaNome = tech.isNotEmpty ? tech : 'Geral';
+      String? areaMateria;
+      final relationProp = props['Sessão de Estudo'] as Map<String, dynamic>?;
+      if (relationProp != null && relationProp['type'] == 'relation') {
+        final relArray = relationProp['relation'] as List<dynamic>? ?? [];
+        if (relArray.isNotEmpty) {
+          final topicoId = relArray.first['id']?.toString();
+          if (topicoId != null && estudosDiariosMap.containsKey(topicoId)) {
+            final top = estudosDiariosMap[topicoId]!;
+            final matId = top['materia_id'];
+            if (matId != null && materiasMap.containsKey(matId)) {
+              final mat = materiasMap[matId]!;
+              materiaNome = mat['nome'] ?? materiaNome;
+              areaMateria = mat['area'];
+            }
+          }
+        }
+      }
+
+      // Classificação Trabalho vs Estudos
+      bool isTrab = false;
+      if (isMateriaTrabalho != null) {
+        isTrab = isMateriaTrabalho(materiaNome, areaMateria);
+      }
+      if (!isTrab) {
+        final tLower = tech.toLowerCase();
+        final mLower = materiaNome.toLowerCase();
+        if (tLower == 'trabalho' || tLower == 'implanta' || mLower.contains('trabalho') || mLower.contains('implanta')) {
+          isTrab = true;
+        }
+      }
+
+      final diaIndex = (ini.weekday - 1).clamp(0, 6);
+      final diaKey = '${ini.year}-${ini.month.toString().padLeft(2, '0')}-${ini.day.toString().padLeft(2, '0')}';
+      final horas = mins / 60.0;
+
+      totalMinutosGeral += mins;
+      diasAtivosGeral.add(diaKey);
+
+      if (isTrab) {
+        totalMinutosTrabalho += mins;
+        totalSessoesTrabalho++;
+        diasAtivosTrabalho.add(diaKey);
+        horasTrabalhoPorDia[diaIndex] += horas;
+        minPorProjetoTrabalho[materiaNome] = (minPorProjetoTrabalho[materiaNome] ?? 0) + mins;
+        if (titulo.isNotEmpty && !titulo.startsWith('[Encerrado]') && !titulo.startsWith('📊')) {
+          tarefasTrabalho.add(titulo);
+        }
+      } else {
+        totalMinutosEstudos += mins;
+        totalSessoesEstudos++;
+        diasAtivosEstudos.add(diaKey);
+        horasEstudosPorDia[diaIndex] += horas;
+        minPorMateriaEstudos[materiaNome] = (minPorMateriaEstudos[materiaNome] ?? 0) + mins;
+        if (titulo.isNotEmpty && !titulo.startsWith('[Encerrado]') && !titulo.startsWith('📊')) {
+          tarefasEstudos.add(titulo);
+        }
       }
     }
 
@@ -694,41 +818,106 @@ class NotionService {
     final fimLabel = '${fimSemana.day} ${meses[fimSemana.month - 1]} ${fimSemana.year}';
     final tituloRelatorio = '📊 Relatório Semanal — $iniLabel a $fimLabel';
 
-    final h = totalMinutos ~/ 60;
-    final m = totalMinutos % 60;
-    final tempoStr = h > 0 ? '${h}h ${m}min' : '${m}min';
+    final tempoGeralStr = _formatarMinutos(totalMinutosGeral);
+    final tempoEstudosStr = _formatarMinutos(totalMinutosEstudos);
+    final tempoTrabalhoStr = _formatarMinutos(totalMinutosTrabalho);
 
-    final cats = minPorCategoria.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final pctEstudos = totalMinutosGeral > 0 ? ((totalMinutosEstudos / totalMinutosGeral) * 100).round() : 0;
+    final pctTrabalho = totalMinutosGeral > 0 ? ((totalMinutosTrabalho / totalMinutosGeral) * 100).round() : 0;
+
+    // Identifica dia mais produtivo
+    const nomesDias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+    int melhorDiaIndex = 0;
+    double maxHorasDia = 0.0;
+    for (int i = 0; i < 7; i++) {
+      final totalDia = horasEstudosPorDia[i] + horasTrabalhoPorDia[i];
+      if (totalDia > maxHorasDia) {
+        maxHorasDia = totalDia;
+        melhorDiaIndex = i;
+      }
+    }
+    final diaMaisProdutivo = maxHorasDia > 0
+        ? '${nomesDias[melhorDiaIndex]} (${maxHorasDia.toStringAsFixed(1)}h)'
+        : 'Sem registros';
+
+    final mediaDiariaHoras = diasAtivosGeral.isNotEmpty ? ((totalMinutosGeral / 60.0) / diasAtivosGeral.length).toStringAsFixed(1) : '0.0';
+
     final now = DateTime.now();
     final geradoEm =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
-    final catBlocks = cats.take(20).map((e) {
-      final p = totalMinutos > 0 ? ((e.value / totalMinutos) * 100).round() : 0;
-      final ch = e.value ~/ 60;
-      final cm = e.value % 60;
-      final ct = ch > 0 ? '${ch}h ${cm}min' : '${cm}min';
-      return _bulletBlock('${e.key} — $ct ($p%)');
-    }).toList();
+    // Gera blocos para lista de Matérias de Estudo
+    final matsEstudosOrdenadas = minPorMateriaEstudos.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final catEstudosBlocks = matsEstudosOrdenadas.isEmpty
+        ? [_bulletBlock('Nenhuma sessão de estudo registrada.')]
+        : matsEstudosOrdenadas.take(15).map((e) {
+            final p = totalMinutosEstudos > 0 ? (e.value / totalMinutosEstudos) : 0.0;
+            final tempo = _formatarMinutos(e.value);
+            final barra = _gerarBarraUnicode(p);
+            return _bulletBlock('📚 ${e.key}: $tempo  [$barra]');
+          }).toList();
 
-    final taskBlocks = tarefas.isEmpty
-        ? [_bulletBlock('Nenhuma tarefa registrada.')]
-        : tarefas.take(25).map(_bulletBlock).toList();
+    // Gera blocos para lista de Projetos de Trabalho
+    final matsTrabalhoOrdenadas = minPorProjetoTrabalho.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final catTrabalhoBlocks = matsTrabalhoOrdenadas.isEmpty
+        ? [_bulletBlock('Nenhuma sessão de trabalho registrada.')]
+        : matsTrabalhoOrdenadas.take(15).map((e) {
+            final p = totalMinutosTrabalho > 0 ? (e.value / totalMinutosTrabalho) : 0.0;
+            final tempo = _formatarMinutos(e.value);
+            final barra = _gerarBarraUnicode(p);
+            return _bulletBlock('💼 ${e.key}: $tempo  [$barra]');
+          }).toList();
+
+    final taskEstudosBlocks = tarefasEstudos.isEmpty
+        ? [_bulletBlock('Nenhuma tarefa de estudo catalogada.')]
+        : tarefasEstudos.take(20).map((t) => _bulletBlock('• $t')).toList();
+
+    final taskTrabalhoBlocks = tarefasTrabalho.isEmpty
+        ? [_bulletBlock('Nenhuma tarefa de trabalho catalogada.')]
+        : tarefasTrabalho.take(20).map((t) => _bulletBlock('• $t')).toList();
+
+    // URLs dos gráficos do QuickChart
+    final urlGraficoBarras = _gerarUrlGraficoBarrasDiarias(horasEstudosPorDia, horasTrabalhoPorDia);
+    final urlGraficoRosca = _gerarUrlGraficoRosca(totalMinutosEstudos / 60.0, totalMinutosTrabalho / 60.0);
 
     final blocks = <Map<String, dynamic>>[
-      _calloutBlock('Gerado automaticamente pelo Pomodoro Dev Tracker em $geradoEm'),
+      _calloutWithEmoji('Gerado automaticamente pelo Pomodoro Dev Tracker em $geradoEm', '🤖', 'gray_background'),
       _dividerBlock(),
-      _heading2Block('📈 Resumo'),
-      _bulletBlock('🍅 Sessões registradas: ${sessoes.length}'),
-      _bulletBlock('⏱ Tempo total focado: $tempoStr'),
-      _bulletBlock('📅 Dias com foco: ${diasAtivos.length} de 7'),
+      _heading2Block('🎯 Resumo Executivo (KPIs Gerais)'),
+      _bulletBlock('⏱ Tempo Total Focado: $tempoGeralStr (${sessoes.length} sessões)'),
+      _bulletBlock('📅 Dias Ativos: ${diasAtivosGeral.length} de 7 dias (Média de ${mediaDiariaHoras}h/dia ativo)'),
+      _bulletBlock('⚖️ Distribuição: 📚 $pctEstudos% Estudos ($tempoEstudosStr)  |  💼 $pctTrabalho% Trabalho ($tempoTrabalhoStr)'),
+      _bulletBlock('🏆 Dia Mais Produtivo: $diaMaisProdutivo'),
       _dividerBlock(),
-      _heading2Block('📂 Por Categoria'),
-      ...catBlocks,
+      _heading2Block('📊 Evolução Diária na Semana'),
+      _imageBlock(urlGraficoBarras),
       _dividerBlock(),
-      _heading2Block('📝 Tarefas Trabalhadas'),
-      ...taskBlocks,
+      _heading2Block('📚 Área de Estudos & Aprendizado'),
+      _calloutWithEmoji('Total em Estudos: $tempoEstudosStr ($totalSessoesEstudos sessões em ${diasAtivosEstudos.length} dias)', '📘', 'blue_background'),
+      _heading3Block('📂 Disciplinas Estudadas'),
+      ...catEstudosBlocks,
+      _heading3Block('📝 Tarefas de Estudo Concluídas'),
+      ...taskEstudosBlocks,
+      _dividerBlock(),
+      _heading2Block('💼 Área de Trabalho & Projetos'),
+      _calloutWithEmoji('Total em Trabalho: $tempoTrabalhoStr ($totalSessoesTrabalho sessões em ${diasAtivosTrabalho.length} dias)', '💼', 'orange_background'),
+      _heading3Block('📂 Demandas e Projetos'),
+      ...catTrabalhoBlocks,
+      _heading3Block('📝 Entregas e Tarefas de Trabalho'),
+      ...taskTrabalhoBlocks,
+      _dividerBlock(),
+      _heading2Block('🥧 Proporção de Foco'),
+      _imageBlock(urlGraficoRosca),
+      _dividerBlock(),
+      _heading2Block('💡 Insights & Recomendações'),
+      _calloutWithEmoji(
+        '• Consistência: ${diasAtivosGeral.length >= 5 ? "Excelente ritmo semanal! Mais de 5 dias ativos." : "Meta de consistência: tente manter pelo menos 5 dias com blocos de foco."}\n'
+        '• Equilíbrio: ${pctEstudos >= 40 && pctTrabalho >= 30 ? "Ótimo equilíbrio saudável entre trabalho e evolução nos estudos." : "Atenção à distribuição de tempo entre trabalho e capacitação contínua."}\n'
+        '• Pico de Rendimento: Maior concentração de energia em $diaMaisProdutivo.',
+        '💡',
+        'green_background',
+      ),
     ];
 
     final url = Uri.parse('https://api.notion.com/v1/pages');
@@ -749,9 +938,114 @@ class NotionService {
         .timeout(const Duration(seconds: 15));
     if (response.statusCode == 200 || response.statusCode == 201) {
       return true;
+    } else if (response.statusCode == 404) {
+      throw Exception("Página do Notion não encontrada (404). Verifique se o link/ID está correto e se a Integração foi conectada à página em 'Connections'.");
+    } else if (response.statusCode == 401) {
+      throw Exception("Token do Notion inválido ou não autorizado (401).");
     } else {
-      throw Exception('Falha ao criar relatorio no Notion (Status ${response.statusCode}): ${response.body}');
+      throw Exception('Falha ao criar relatório no Notion (${response.statusCode}): ${response.body}');
     }
+  }
+
+  String _formatarMinutos(int totalMinutos) {
+    final h = totalMinutos ~/ 60;
+    final m = totalMinutos % 60;
+    if (h > 0 && m > 0) return '${h}h ${m}min';
+    if (h > 0) return '${h}h';
+    return '${m}min';
+  }
+
+  String _gerarBarraUnicode(double percentual, [int tamanho = 10]) {
+    final clamped = percentual.clamp(0.0, 1.0);
+    final preenchido = (clamped * tamanho).round();
+    final vazio = tamanho - preenchido;
+    return '${'█' * preenchido}${'░' * vazio} ${(percentual * 100).toStringAsFixed(0)}%';
+  }
+
+  String _gerarUrlGraficoBarrasDiarias(List<double> estudos, List<double> trabalho) {
+    final chartConfig = {
+      "type": "bar",
+      "data": {
+        "labels": ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
+        "datasets": [
+          {
+            "label": "Estudos (h)",
+            "data": estudos.map((h) => double.parse(h.toStringAsFixed(1))).toList(),
+            "backgroundColor": "#06b6d4",
+            "borderRadius": 4,
+          },
+          {
+            "label": "Trabalho (h)",
+            "data": trabalho.map((h) => double.parse(h.toStringAsFixed(1))).toList(),
+            "backgroundColor": "#f59e0b",
+            "borderRadius": 4,
+          }
+        ]
+      },
+      "options": {
+        "scales": {
+          "x": {
+            "stacked": true,
+            "ticks": {"color": "#94a3b8", "font": {"weight": "bold"}},
+            "grid": {"color": "rgba(255,255,255,0.06)"}
+          },
+          "y": {
+            "stacked": true,
+            "ticks": {"color": "#94a3b8"},
+            "grid": {"color": "rgba(255,255,255,0.06)"}
+          }
+        },
+        "plugins": {
+          "legend": {
+            "labels": {"color": "#f8fafc", "font": {"weight": "bold", "size": 12}}
+          },
+          "title": {
+            "display": true,
+            "text": "Foco Diário na Semana (Horas)",
+            "color": "#f8fafc",
+            "font": {"size": 15, "weight": "bold"}
+          }
+        }
+      }
+    };
+    final jsonStr = jsonEncode(chartConfig);
+    return "https://quickchart.io/chart?w=600&h=300&bkg=%230f172a&c=${Uri.encodeComponent(jsonStr)}";
+  }
+
+  String _gerarUrlGraficoRosca(double horasEstudos, double horasTrabalho) {
+    final chartConfig = {
+      "type": "doughnut",
+      "data": {
+        "labels": ["📚 Estudos", "💼 Trabalho"],
+        "datasets": [
+          {
+            "data": [
+              double.parse(horasEstudos.toStringAsFixed(1)),
+              double.parse(horasTrabalho.toStringAsFixed(1)),
+            ],
+            "backgroundColor": ["#06b6d4", "#f59e0b"],
+            "borderWidth": 2,
+            "borderColor": "#0f172a"
+          }
+        ]
+      },
+      "options": {
+        "plugins": {
+          "legend": {
+            "position": "bottom",
+            "labels": {"color": "#f8fafc", "font": {"weight": "bold", "size": 13}}
+          },
+          "title": {
+            "display": true,
+            "text": "Distribuição Geral de Foco",
+            "color": "#f8fafc",
+            "font": {"size": 15, "weight": "bold"}
+          }
+        }
+      }
+    };
+    final jsonStr = jsonEncode(chartConfig);
+    return "https://quickchart.io/chart?w=500&h=300&bkg=%230f172a&c=${Uri.encodeComponent(jsonStr)}";
   }
 
   Future<List<Map<String, dynamic>>> obterSessoesHoje() async {
@@ -801,12 +1095,34 @@ class NotionService {
         },
       };
 
+  Map<String, dynamic> _calloutWithEmoji(String text, String emoji, [String color = "gray_background"]) => {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+          "icon": {"type": "emoji", "emoji": emoji},
+          "rich_text": [
+            {"type": "text", "text": {"content": text}}
+          ],
+          "color": color,
+        },
+      };
+
   Map<String, dynamic> _dividerBlock() => {"object": "block", "type": "divider", "divider": {}};
 
   Map<String, dynamic> _heading2Block(String text) => {
         "object": "block",
         "type": "heading_2",
         "heading_2": {
+          "rich_text": [
+            {"type": "text", "text": {"content": text}}
+          ],
+        },
+      };
+
+  Map<String, dynamic> _heading3Block(String text) => {
+        "object": "block",
+        "type": "heading_3",
+        "heading_3": {
           "rich_text": [
             {"type": "text", "text": {"content": text}}
           ],
@@ -820,6 +1136,15 @@ class NotionService {
           "rich_text": [
             {"type": "text", "text": {"content": text}}
           ],
+        },
+      };
+
+  Map<String, dynamic> _imageBlock(String url) => {
+        "object": "block",
+        "type": "image",
+        "image": {
+          "type": "external",
+          "external": {"url": url},
         },
       };
 }

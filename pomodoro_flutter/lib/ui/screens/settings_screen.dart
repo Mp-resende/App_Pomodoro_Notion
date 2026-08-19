@@ -462,17 +462,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 validator: null,
               ),
               const SizedBox(height: 12),
-              Row(
+              if (timerProvider.ultimoRelatorioStr.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _formatarUltimoRelatorio(timerProvider.ultimoRelatorioStr),
+                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
+                  ),
+                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
                 children: [
-                  if (timerProvider.ultimoRelatorioStr.isNotEmpty)
-                    Expanded(
-                      child: Text(
-                        _formatarUltimoRelatorio(timerProvider.ultimoRelatorioStr),
-                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
-                      ),
-                    )
-                  else
-                    const Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: (_gerandoRelatorio || _reportsPageIdController.text.trim().isEmpty)
+                        ? null
+                        : () async {
+                            setState(() => _gerandoRelatorio = true);
+                            final agora = DateTime.now();
+                            final segundaAtual = DateTime(agora.year, agora.month, agora.day)
+                                .subtract(Duration(days: agora.weekday - 1));
+                            final fimHoje = DateTime(agora.year, agora.month, agora.day, 23, 59, 59);
+
+                            final tp = Provider.of<TimerProvider>(context, listen: false);
+                            final erro = await tp.gerarRelatorioSemanal(
+                              inicioSemana: segundaAtual,
+                              fimSemana: fimHoje,
+                              paginaPaiOverride: _reportsPageIdController.text,
+                            );
+                            if (mounted) {
+                              setState(() => _gerandoRelatorio = false);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(erro == null
+                                    ? "✅ Relatório desta semana criado no Notion!"
+                                    : "❌ $erro"),
+                                backgroundColor: erro == null ? Colors.green : Colors.redAccent,
+                                duration: const Duration(seconds: 5),
+                              ));
+                            }
+                          },
+                    icon: _gerandoRelatorio
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white),
+                          )
+                        : const Icon(Icons.flash_on_rounded, size: 16),
+                    label: const Text(
+                      "Testar (Esta Semana)",
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.05),
+                      foregroundColor: Colors.cyanAccent,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
                   ElevatedButton.icon(
                     onPressed: (_gerandoRelatorio || _reportsPageIdController.text.trim().isEmpty)
                         ? null
@@ -486,26 +532,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               setState(() => _gerandoRelatorio = false);
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                                 content: Text(erro == null
-                                    ? "✅ Relatório criado no Notion!"
+                                    ? "✅ Relatório da semana anterior criado no Notion!"
                                     : "❌ $erro"),
                                 backgroundColor: erro == null ? Colors.green : Colors.redAccent,
+                                duration: const Duration(seconds: 5),
                               ));
                             }
                           },
-                    icon: _gerandoRelatorio
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white),
-                          )
-                        : const Icon(Icons.summarize_rounded, size: 16),
-                    label: Text(
-                      _gerandoRelatorio ? "Gerando..." : "Gerar Última Semana",
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                    icon: const Icon(Icons.history_rounded, size: 16),
+                    label: const Text(
+                      "Gerar (Semana Anterior)",
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withOpacity(0.05),
-                      foregroundColor: Colors.cyanAccent,
+                      backgroundColor: Colors.white.withOpacity(0.03),
+                      foregroundColor: Colors.white70,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),

@@ -1094,6 +1094,7 @@ class TimerProvider with ChangeNotifier {
         paginaPaiId: pageId,
         inicioSemana: inicio,
         fimSemana: fim,
+        isMateriaTrabalho: isMateriaTrabalho,
       );
 
       _gerandoRelatorio = false;
