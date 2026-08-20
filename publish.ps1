@@ -68,10 +68,11 @@ robocopy "$projetoNome" "$tempPath" /XD build .dart_tool .git /XF .env /S /NFL /
 Remove-Item -Path "$tempPath\windows\flutter\ephemeral" -Recurse -Force -ErrorAction SilentlyContinue
 
 # 6. Executa as compilacoes na pasta temporaria
-Write-Host "Compilando APK do Android..." -ForegroundColor Yellow
+Write-Host "Compilando APKs do Android (Split-ABI + Universal)..." -ForegroundColor Yellow
 cd $tempPath
 & C:\Users\Usuario\flutter\bin\flutter.bat build apk --split-per-abi
-cd $PSScriptRoot
+& C:\Users\Usuario\flutter\bin\flutter.bat build apk
+cd $rootDir
 
 Write-Host "Compilando executavel do Windows..." -ForegroundColor Yellow
 cd $tempPath
