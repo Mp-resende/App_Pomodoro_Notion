@@ -698,9 +698,14 @@ class TimerProvider with ChangeNotifier {
     });
     _salvarContadorHoje();
 
+    // Verifica se o aplicativo está ativo (aberto na tela)
+    final isInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
     if (Platform.isAndroid) {
       notificationService.removerNotificacaoCronometro();
-      notificationService.cancelarNotificacoes();
+      if (isInForeground) {
+        notificationService.cancelarNotificacoes();
+      }
     }
 
     labelStatus = "Enviando...";
@@ -717,9 +722,6 @@ class TimerProvider with ChangeNotifier {
         notificationService.tocarAlarme();
       } catch (_) {}
     }
-
-    // Verifica se o aplicativo está ativo (aberto na tela)
-    final isInForeground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
     // 3. Dispara a notificação de forma isolada e segura (APENAS se estiver minimizado/ausente)
     if (!isInForeground) {

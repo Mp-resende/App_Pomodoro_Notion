@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -8,6 +10,19 @@ import 'dart:async';
 class NotificationService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+
+  static const MethodChannel _audioChannel = MethodChannel('com.pomodoro.pomodoro_notion/audio');
+
+  // Verifica se há fones de ouvido ou dispositivo Bluetooth de áudio conectado
+  static Future<bool> isBluetoothOrHeadsetConnected() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final bool? isConnected = await _audioChannel.invokeMethod<bool>('isBluetoothOrHeadsetConnected');
+      return isConnected ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // Stream para propagar eventos de clique nos botões de ação
   static final StreamController<String?> onActionSelected = StreamController<String?>.broadcast();
@@ -23,12 +38,25 @@ class NotificationService {
       // Inicializa a base de fusos horários para agendamento preciso
       tz.initializeTimeZones();
       // Configura o local padrão para o fuso local do dispositivo
-      // O Dart tenta resolver localmente de forma nativa
       final String timeZoneName = DateTime.now().timeZoneName;
       try {
         tz.setLocalLocation(tz.getLocation(timeZoneName));
       } catch (_) {
-        // Fallback genérico caso a localização específica não conste na tabela básica
+        // Fallback inteligente para fusos brasileiros/América do Sul baseado no offset UTC
+        final offsetHours = DateTime.now().timeZoneOffset.inHours;
+        String fallbackLocation = 'America/Sao_Paulo';
+        if (offsetHours == -3) {
+          fallbackLocation = 'America/Sao_Paulo';
+        } else if (offsetHours == -4) {
+          fallbackLocation = 'America/Manaus';
+        } else if (offsetHours == -5) {
+          fallbackLocation = 'America/Rio_Branco';
+        } else if (offsetHours == 0) {
+          fallbackLocation = 'UTC';
+        }
+        try {
+          tz.setLocalLocation(tz.getLocation(fallbackLocation));
+        } catch (_) {}
       }
 
       // Configurações padrão para Android (usa o ícone padrão do aplicativo)
@@ -122,11 +150,23 @@ class NotificationService {
   Future<void> tocarAlarme() async {
     try {
       if (Platform.isAndroid) {
-        // Toca o alarme padrão configurado no celular do usuário
-        await FlutterRingtonePlayer().playAlarm(
-          looping: false,
-          asAlarm: true,
-        );
+        final isBt = await isBluetoothOrHeadsetConnected();
+        if (isBt) {
+          // Quando dispositivo Bluetooth ou fone está conectado:
+          // asAlarm: false utiliza o stream de mídia normal (STREAM_MUSIC).
+          // Dessa forma, o Android direciona o áudio EXCLUSIVAMENTE para o Bluetooth/fone conectado,
+          // sem emitir som no alto-falante do celular!
+          await FlutterRingtonePlayer().playAlarm(
+            looping: false,
+            asAlarm: false,
+          );
+        } else {
+          // Sem fone: utiliza o stream de alarme padrão pelo alto-falante
+          await FlutterRingtonePlayer().playAlarm(
+            looping: false,
+            asAlarm: true,
+          );
+        }
 
         // Desliga o som após 4 segundos para evitar toques infinitos incômodos
         Future.delayed(const Duration(seconds: 4), () {
@@ -149,23 +189,25 @@ class NotificationService {
   Future<void> agendarNotificacao(int id, String titulo, String mensagem, DateTime instante) async {
     await inicializar();
     try {
+      final isBt = await isBluetoothOrHeadsetConnected();
       // Converte DateTime para TZDateTime exigido pelo plugin
       final tzDateTime = tz.TZDateTime.from(instante, tz.local);
 
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'pomodoro_channel',
-        'Pomodoro Dev Tracker',
-        channelDescription: 'Canal de notificações de término de sessão do Pomodoro',
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        isBt ? 'pomodoro_rest_channel_bt_v7' : 'pomodoro_rest_channel_v7',
+        'Fim do Descanso',
+        channelDescription: 'Canal de notificações de término de descanso',
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
         enableVibration: true,
-        // Garante que o alarme toque no Android mesmo com a tela bloqueada ou em modo soneca
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-        category: AndroidNotificationCategory.alarm,
+        vibrationPattern: Int64List.fromList([0, 500, 250, 500]),
+        fullScreenIntent: true,
+        audioAttributesUsage: isBt ? AudioAttributesUsage.notification : AudioAttributesUsage.alarm,
+        category: isBt ? AndroidNotificationCategory.event : AndroidNotificationCategory.alarm,
       );
 
-      const NotificationDetails details = NotificationDetails(
+      final NotificationDetails details = NotificationDetails(
         android: androidDetails,
       );
 
@@ -274,8 +316,13 @@ class NotificationService {
 
     if (!Platform.isAndroid) return;
 
-    final canalId = comSom ? 'pomodoro_end_channel_sound_v6' : 'pomodoro_end_channel_silent_v6';
-    final canalNome = comSom ? 'Fim da Sessao (Com Som) v6' : 'Fim da Sessao (Apenas Vibrar) v6';
+    final isBt = await isBluetoothOrHeadsetConnected();
+    final canalId = !comSom
+        ? 'pomodoro_end_channel_silent_v7'
+        : (isBt ? 'pomodoro_end_channel_bt_v7' : 'pomodoro_end_channel_sound_v7');
+    final canalNome = !comSom
+        ? 'Fim da Sessao (Apenas Vibrar)'
+        : (isBt ? 'Fim da Sessao (Fone/Bluetooth)' : 'Fim da Sessao (Com Som)');
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       canalId,
@@ -285,10 +332,11 @@ class NotificationService {
       priority: Priority.max,
       playSound: comSom,
       enableVibration: comVibracao,
+      vibrationPattern: comVibracao ? Int64List.fromList([0, 800, 400, 800, 400, 1000]) : null,
       visibility: NotificationVisibility.public,
       fullScreenIntent: true,
-      audioAttributesUsage: AudioAttributesUsage.alarm,
-      category: AndroidNotificationCategory.alarm,
+      audioAttributesUsage: isBt ? AudioAttributesUsage.notification : AudioAttributesUsage.alarm,
+      category: isBt ? AndroidNotificationCategory.event : AndroidNotificationCategory.alarm,
       actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
           'action_comecar_descanso',
@@ -334,10 +382,15 @@ class NotificationService {
     if (!Platform.isAndroid) return;
 
     try {
+      final isBt = await isBluetoothOrHeadsetConnected();
       final tzDateTime = tz.TZDateTime.from(instante, tz.local);
 
-      final canalId = comSom ? 'pomodoro_end_channel_sound_v6' : 'pomodoro_end_channel_silent_v6';
-      final canalNome = comSom ? 'Fim da Sessao (Com Som) v6' : 'Fim da Sessao (Apenas Vibrar) v6';
+      final canalId = !comSom
+          ? 'pomodoro_end_channel_silent_v7'
+          : (isBt ? 'pomodoro_end_channel_bt_v7' : 'pomodoro_end_channel_sound_v7');
+      final canalNome = !comSom
+          ? 'Fim da Sessao (Apenas Vibrar)'
+          : (isBt ? 'Fim da Sessao (Fone/Bluetooth)' : 'Fim da Sessao (Com Som)');
 
       final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         canalId,
@@ -347,10 +400,11 @@ class NotificationService {
         priority: Priority.max,
         playSound: comSom,
         enableVibration: comVibracao,
+        vibrationPattern: comVibracao ? Int64List.fromList([0, 800, 400, 800, 400, 1000]) : null,
         visibility: NotificationVisibility.public,
         fullScreenIntent: true,
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-        category: AndroidNotificationCategory.alarm,
+        audioAttributesUsage: isBt ? AudioAttributesUsage.notification : AudioAttributesUsage.alarm,
+        category: isBt ? AndroidNotificationCategory.event : AndroidNotificationCategory.alarm,
         actions: <AndroidNotificationAction>[
           AndroidNotificationAction(
             'action_comecar_descanso',
